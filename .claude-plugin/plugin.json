@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/Subx1s0o/architecture-first-plugin",
   "repository": "https://github.com/Subx1s0o/architecture-first-plugin",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "architecture",
     "refactor",
