@@ -442,8 +442,8 @@ The request was too trivial ("rename X"). Add context: "…in the `orders` modul
 **Q. I ran `/arch-clean-approve` and the test suite failed.**
 The plugin does `git restore` automatically and reports the failure. Nothing is lost. Check the manifest — it now has a `Status: failed — <reason>` line.
 
-**Q. Stale `.claude/.arch-approved-*` files in my repo.**
-Harmless markers. `rm <repo>/.claude/.arch-approved-*` whenever you like.
+**Q. Where do the session markers live? Will they pollute my repo?**
+No. Markers live under `${TMPDIR:-/tmp}/architecture-first/` — ephemeral per-user storage, never in the project tree. They auto-expire after 24 hours on every hook invocation. Your repo stays clean.
 
 **Q. I want to tune the thresholds — 400 LoC is too strict for my legacy Rails app.**
 Edit `.arch-profile.yaml` → `thresholds:`. Stack defaults are only used when you don't override.
