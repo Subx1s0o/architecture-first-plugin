@@ -1,0 +1,23 @@
+{
+  "name": "architecture-first",
+  "displayName": "Architecture First",
+  "description": "Architect + cleaner dual-lens workflow. Forces situation → plan → structure → code, detects hotspots, plans decompositions, classifies cleanup by safety level.",
+  "version": "0.3.3",
+  "author": {
+    "name": "Subx1s0o",
+    "email": "nazarsabardin@gmail.com"
+  },
+  "homepage": "https://github.com/Subx1s0o/architecture-first-plugin",
+  "repository": "https://github.com/Subx1s0o/architecture-first-plugin",
+  "license": "Apache-2.0",
+  "keywords": [
+    "architecture",
+    "refactor",
+    "cleanup",
+    "code-review",
+    "ddd",
+    "clean-architecture"
+  ],
+  "rules": "./cursor/rules/",
+  "prompts": "./cursor/prompts/"
+}

@@ -14,29 +14,43 @@
 
 ## Install
 
-### Claude Code
+### Claude Code — via marketplace (recommended)
+
+In Claude Code, run:
+
+```text
+/plugin marketplace add Subx1s0o/architecture-first-plugin
+/plugin install architecture-first@architecture-first-marketplace
+```
+
+The hook auto-registers via `hooks/hooks.json` using `${CLAUDE_PLUGIN_ROOT}` — no manual `settings.json` editing. Requires Python 3.8+ on `PATH`.
+
+### Cursor IDE — via `/add-plugin` (recommended)
+
+In Cursor, run:
+
+```text
+/add-plugin github.com/Subx1s0o/architecture-first-plugin
+```
+
+Cursor reads `.cursor-plugin/plugin.json` and wires up the rule at `cursor/rules/architecture-first.mdc` plus the 9 prompt snippets under `cursor/prompts/`.
+
+For Cursor's limitations (no hard hook, no parallel sub-agents) see [CURSOR.md](CURSOR.md).
+
+### Fallback — manual install via script
+
+If you don't use marketplaces, clone and run the installer:
 
 ```bash
 git clone https://github.com/Subx1s0o/architecture-first-plugin.git
-cd architecture-first-plugin && ./install.sh
+cd architecture-first-plugin && ./install.sh                 # Claude Code
+./cursor/install.sh /path/to/your-project                     # Cursor per project
 ```
-
-Requires Python 3.8+, bash, git. Works on macOS, Linux, and Windows (WSL/Git Bash).
-
-### Cursor IDE (per project)
-
-```bash
-cd /path/to/your-project
-/path/to/architecture-first-plugin/cursor/install.sh
-```
-
-Commit `.cursor/` so your team gets the same guardrail. For details on Cursor limitations (no hook, no parallel agents) see [CURSOR.md](CURSOR.md).
 
 ### Uninstall
 
-```bash
-./uninstall.sh
-```
+Claude Code: `/plugin uninstall architecture-first` (or `./uninstall.sh` if installed manually).
+Cursor: remove `.cursor/rules/architecture-first.mdc` and `.cursor/prompts-architecture-first/` from the project.
 
 ## Commands
 
