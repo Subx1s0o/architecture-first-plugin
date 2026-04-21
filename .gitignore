@@ -1,0 +1,7 @@
+.DS_Store
+.claude/.arch-approved-*
+.claude/.clean-approved-*
+*.log
+node_modules/
+.idea/
+.vscode/

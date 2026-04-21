@@ -1,0 +1,1 @@
+The plan above is approved. Proceed to write the code (section 4 of the 4-step response). Keep edits surgical — include the bundled L1/L2 cleanup items you listed, but don't refactor adjacent code that wasn't in the plan.

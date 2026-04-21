@@ -1,0 +1,48 @@
+# .arch-profile.yaml — calibrates the architecture-first plugin to THIS repo.
+# Checked in. Reviewed when module layout changes.
+
+repo: <repo name>
+stack: [<primary language>, <framework>, <datastore>, <queue>, <transport>]
+
+# Layer names used in THIS repo, with a one-line role.
+# The skill uses these verbatim in descriptions. Remove what does not apply.
+layers:
+  interface: HTTP/GraphQL/CLI entry points; no business logic
+  application: use-cases, orchestration
+  domain: pure business logic, framework-free
+  infrastructure: DB, external APIs, caches, file system
+
+# Modules and which layers they are allowed to contain.
+modules:
+  # example:
+  # billing: [interface, application, domain, infrastructure]
+
+# Allowed direct import edges between modules (barrel imports only).
+# Anything else must go through events or a port.
+allowed-module-edges:
+  # example:
+  # orders -> [billing, inventory]
+
+# Modules where any change forces tier M minimum and invokes architect-reviewer.
+hot-modules: []
+
+# Hotspot thresholds override the stack profile's defaults.
+thresholds:
+  file-loc: { warn: 400, xl: 600 }
+  fn-loc: { warn: 60, xl: 100 }
+  cyclomatic: { warn: 10, xl: 15 }
+  fan-in: { warn: 15, xl: 25 }
+  churn-20: { warn: 4, xl: 7 }
+
+# Commands used by /arch-clean-approve to verify cleanup batches.
+commands:
+  test: ""
+  build: ""
+  lint: ""
+
+# Domain glossary — canonical meaning of ambiguous terms in this repo.
+# Example:
+# glossary:
+#   leader: master account being copied
+#   follower: subscriber account mirroring a leader
+glossary: {}

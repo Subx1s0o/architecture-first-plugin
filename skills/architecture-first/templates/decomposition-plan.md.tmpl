@@ -1,0 +1,57 @@
+# DEC-NNNN: Decompose <target>
+
+- **Date**: YYYY-MM-DD
+- **Status**: proposed | in progress | done | abandoned
+- **Target**: <path / module>
+- **Owner**: <name>
+
+## 1. Evidence (why this is a hotspot)
+
+| Tier | Signal | Value | Threshold | Command |
+|---|---|---|---|---|
+| 0 | LoC | | | `wc -l ...` |
+| 0 | Churn 90d | | | `git log ...` |
+| 1 | Fan-in | | | `grep ...` |
+| 1 | Cycle | | | `madge ...` |
+| 2 | Responsibilities | | | see below |
+
+## 2. Pattern chosen
+
+- **Pattern:** <name from playbook>
+- **Why this over alternatives:** …
+
+## 3. Target architecture
+
+```mermaid
+%% C4-component diagram of the target state
+```
+
+## 4. PR sequence
+
+1. PR-1 — <title> — <one-line purpose, zero behaviour change if possible>
+2. PR-2 — …
+3. …
+
+Each PR ends with a green build and parity evidence.
+
+## 5. Rollout and rollback
+
+- Feature flag: `<name>` / config toggle / none
+- Canary: % of traffic / users
+- Parity checks: metrics, shadow reads, golden tests
+- Rollback: flip flag, revert PR, …
+
+## 6. Sunset
+
+Any transitional scaffolding (adapter, strangler router, dual-write) has a removal PR and a date: <YYYY-MM-DD>.
+
+## 7. Risks
+
+| Risk | Mitigation |
+|---|---|
+
+## 8. Success criteria
+
+- Hotspot signals post-decomposition: LoC <, fan-in <, cycle gone, …
+- Tests covering extracted seams exist and pass.
+- ADR linked: <ADR-xxxx>

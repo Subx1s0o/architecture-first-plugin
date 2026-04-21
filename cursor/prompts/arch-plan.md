@@ -1,0 +1,1 @@
+Capture the architectural plan from this conversation as a persistent ADR at docs/adr/ADR-<NNNN>-<slug>.md. Fill: title, date, status=proposed, owner, affected modules, Context (from situation section), Decision (from plan section), Consequences (positive/costs/follow-ups), Alternatives considered. Do not touch code — this command only persists intent.
