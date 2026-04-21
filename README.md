@@ -94,7 +94,15 @@ The gate lifts, Claude writes the code.
 
 ## Install — Claude Code
 
-**Prerequisites:** macOS or Linux, Python 3, `git`. (`jq` is used if available.)
+**Prerequisites:** Python 3.8+, `git`, and a POSIX shell.
+
+**Supported OS:**
+
+- **macOS** — native, markers under `$TMPDIR/architecture-first/`.
+- **Linux** — native, markers under `$TMPDIR/architecture-first/` (falls back to `/tmp/`).
+- **Windows** — supported via **WSL** or **Git Bash**. Native PowerShell/cmd is not supported because the hook and installer are shell scripts (`bash`). Markers resolve to `%TEMP%\architecture-first\` under WSL/Git Bash.
+
+The plugin has **zero runtime footprint** beyond a few ephemeral marker files (≤ ~80 B each) under the OS temp dir. No daemons, no background processes, no logs in your project. Markers auto-prune on every hook invocation once they exceed 24 hours old.
 
 ```bash
 git clone https://github.com/Subx1s0o/architecture-first-plugin.git
