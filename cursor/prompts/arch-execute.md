@@ -7,7 +7,12 @@ Flags: --inplace (no worktree, no push; incompatible with --auto), --no-push, --
 
 Steps:
 
-1. Resolve DEC via glob docs/decomposition/DEC-<padded>-\*.md. Parse PR sequence + Execution log. Pick the target PR.
+1. Resolve DEC(s) by parsing DEC file(s) on disk. The Execution log is the SINGLE source of truth for what's been done — do not use conversation memory.
+   Per DEC: parse Status, PR sequence, Execution log. Match execution lines by regex `^\s*-\s*PR-(\d+)\s+executed\b`. `remaining = {1..total} - executed`.
+   Skip the DEC if Status is `done` / `abandoned`, or remaining is empty.
+   For ALL --auto: glob docs/decomposition/DEC-*.md, sort by DEC number, show queue WITH `(already done: PR-X, PR-Y)` annotations so the user can sanity-check the parse.
+   Optional belt-and-braces: `git cat-file -e <sha>` on each claimed commit; if missing, treat the PR as still-remaining unless --trust-log.
+   If the user passes explicit PR-M and it's already in the log, refuse (tell them to re-run inside the worktree with --inplace).
 
 2. Worktree mode (default): WT_PATH=$(dirname $(git rev-parse --show-toplevel))/$(basename).worktrees/DEC-<padded>-pr-<M>-<slug>, BRANCH=refactor/DEC-<padded>-pr-<M>-<slug>, BASE=--base || .arch-profile default-branch || origin/HEAD || main || master. `git worktree add -b $BRANCH $WT_PATH $BASE`. If path exists: ask reuse/remove/abort.
 

@@ -28,11 +28,49 @@ Flags combine: `/arch-execute 4 --auto --keep --base develop`.
 
 ## Steps
 
-### 1. Resolve the DEC file and PR
+### 1. Resolve the DEC file(s) and PR(s) — the only source of truth is the DEC file on disk
 
-- Normalize id: `4` → `DEC-004`, globbed at `docs/decomposition/DEC-<padded>-*.md`. If missing → stop and say "run `/arch-decompose` first".
-- Parse: Target, chosen Pattern, full PR sequence, Execution log.
-- If PR not given, pick the lowest PR not in the Execution log. If all done → stop and say so.
+Never assume what's been done. Always reconstruct progress by parsing the DEC's `Execution log` section. Do NOT trust conversation memory or any cache.
+
+#### 1a. Parse one DEC file (used by single-PR and `--auto` one-DEC modes)
+
+- Normalize id: `4` / `DEC-4` / `DEC-004` → `DEC-004`. Glob `docs/decomposition/DEC-<padded>-*.md`. If missing → stop with "run `/arch-decompose` first".
+- Read the file. Extract:
+  - **Status** header field (`proposed` | `in progress` | `done` | `abandoned`).
+  - **PR sequence** (Section 4) — enumerate all PRs as `PR-1..PR-<total>` with titles.
+  - **Execution log** (Section 9 or similar) — a list of lines like:
+    `- PR-M executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <path>) — tests <status>, build <status>[, auto: true]`
+    Regex: `^\s*-\s*PR-(\d+)\s+executed\b` — extract the PR numbers.
+- Compute `executed = {M for each matched line}`. Compute `remaining = {1..total} − executed`.
+- If `Status == done` OR `remaining == ∅` → DEC is complete. Stop and say so.
+- If the user passed an explicit `PR-<M>`: refuse if M ∈ executed (tell user to use `--inplace` on the worktree to re-run), otherwise use M.
+- Otherwise: target PR = `min(remaining)`.
+
+#### 1b. Enumerate the queue (used by `ALL --auto` mode)
+
+- Glob `docs/decomposition/DEC-*.md`, sort by DEC number ascending.
+- For each file apply the same parse logic as 1a.
+- Include the DEC in the queue **iff** all three hold:
+  - `Status != done` and `Status != abandoned`
+  - `remaining != ∅`
+  - The DEC doesn't contain a header line `Skip: yes` or similar opt-out marker
+- For each queued DEC, record `{ id, path, remaining PRs, total }`.
+- Display the queue with remaining-only counts:
+  ```
+  Queue: <N> DECs · <sum of remaining> PRs (across <N> worktrees)
+  - DEC-001: PR-2 → PR-3        (already done: PR-1)
+  - DEC-003: PR-1 → PR-4
+  - DEC-005: PR-2 → PR-5        (already done: PR-1)
+  - …
+  ```
+  Always annotate `(already done: …)` when a DEC has partial progress. This is the user's sanity check that the algorithm read the logs correctly.
+- Excluded DECs (status=done, abandoned, Skip, or fully executed) get a separate line: `Excluded: DEC-006 (done), DEC-010 (abandoned)`.
+
+#### 1c. Verify against git (belt-and-braces check)
+
+Parsing the Execution log is the primary signal. As a safety net: when the log claims `PR-M executed` on branch `<branch>` with commit `<sha>`, optionally run `git cat-file -e <sha> 2>/dev/null` to confirm the commit exists. If the sha is missing (log was appended but commit was lost, e.g. worktree was deleted before push), warn the user and treat that PR as still-remaining unless they pass `--trust-log`.
+
+Do NOT re-grep source code to guess what's done. The log is authoritative.
 
 ### 2. Provision isolated worktree (default)
 
