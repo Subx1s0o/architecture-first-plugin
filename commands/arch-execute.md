@@ -72,6 +72,42 @@ Touch session approval marker: `${TMPDIR:-/tmp}/architecture-first/<md5($WT_PATH
 
 In worktree mode, all `Edit`/`Write` use absolute paths under `$WT_PATH`; `Bash` runs `cd "$WT_PATH" && …`.
 
+### 5a. Scope discipline — refuse to touch anything outside the DEC's Files-touched list
+
+Before writing a single line, build the **allow-list** from the DEC's PR-<M> entry (Section 4, "Files touched"). Add:
+
+- Every file path explicitly listed as `CREATE` or `MODIFY` in the PR entry.
+- Its direct test file siblings (e.g. `foo.service.spec.ts` for `foo.service.ts`) if the DEC's Tests section names them.
+- Nothing else.
+
+**Forbidden to touch** (never in the allow-list unless the DEC explicitly calls them out):
+
+- Config/infrastructure: `nest-cli.json`, `tsconfig*.json`, `package.json`, `pnpm-lock.yaml`, `yarn.lock`, `Dockerfile*`, `docker-compose*.yml`, `.eslintrc*`, `.prettierrc*`, `jest.config*`, `vite.config*`, `next.config*`.
+- Git infrastructure: `.gitignore`, `.git/*`, `.husky/*` (including `pre-commit`, `pre-push`, `commit-msg`).
+- CI: `.github/**`, `.gitlab-ci.yml`, `.circleci/*`, `Makefile`.
+- Docs not in the DEC: `README*`, `CHANGELOG*`, `docs/**` (except `docs/adr/**` and `docs/decomposition/**` which this plugin owns).
+
+If a refactor genuinely needs to touch one of these (e.g. add a new `package.json` dependency for an extracted module), the DEC's PR entry must list it explicitly under Files touched. If it's not listed, stop and ask the user to amend the DEC first. Do not "just include it because it obviously needs changing".
+
+### 5b. Post-implement diff guard — before any commit
+
+After implementing but **before** `git add`, run:
+
+```bash
+cd "$WT_PATH" && git status --porcelain
+```
+
+Review every line. For each changed path:
+
+1. **Modified (`M`)** — must be in the allow-list. If not, `git restore -- <path>` and report a warning.
+2. **Added (`A` / `??`)** — must be in the allow-list (as a CREATE entry). If not, `git restore --source=HEAD --staged --worktree -- <path>` (or `rm` if untracked). Report a warning.
+3. **Deleted (`D`)** — the allow-list must include this path explicitly as a deletion. The DEC should have marked it `DELETE` in Files touched. If the path is NOT in the allow-list, this is an accidental deletion: run `git checkout HEAD -- <path>` to restore it, and report loudly: `⚠ Blocked accidental deletion of <path> — not listed in DEC-<id> PR-<M> Files touched.`
+4. **Renamed (`R`)** — both source and target must be in the allow-list.
+
+If **any** restore happened during the guard, do NOT silently commit as if nothing was wrong. Report every blocked change in the Report step, and ask the user whether to proceed with the cleaned-up diff, abort the PR, or amend the DEC to include the originally-unintended changes.
+
+This guard runs **every** PR iteration in `--auto` mode, not just the first one. Accidental deletions compound fast across multiple PRs.
+
 ### 5-auto. Auto-mode loop
 
 For `--auto` / `yes-all` / `yes-all-decs`:
