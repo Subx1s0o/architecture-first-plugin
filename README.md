@@ -93,61 +93,69 @@ Each target gets its own `docs/decomposition/DEC-NNN-<slug>.md` — PR sequence,
 
 > **Cost warning.** `ALL` dispatches N parallel sub-agents = N× tokens. For a normal week, start with `1-3`.
 
-### Step 4 — ship PR-1 of the most urgent plan
+### Step 4 — ship refactors
+
+Three ways, pick by how much you want to babysit:
+
+#### A. One PR at a time (most control)
 
 ```text
 /arch-execute 4
 ```
 
-`/arch-execute` reads `DEC-004`, picks the first unexecuted PR, and shows you a **rich preview**:
+Picks the first unexecuted PR of DEC-004, shows a **rich preview**, waits for you:
 
 - Mermaid before/after diagram with LoC on each node
 - Files-touched table with clickable links
-- What moves (symbols being relocated)
-- Callers that continue to work (backward compat explanation)
-- Existing test pins + new tests this PR adds + coverage gaps
-- Risks + mitigation
-- Alternatives considered (chosen vs rejected, from the DEC)
+- What moves, callers that continue to work, tests, risks, alternatives
 - Destination (worktree path, branch name, base branch)
 
-Respond with one of four options:
+Reply:
 
 ```
-yes                         — proceed as shown
-no                          — abort, no changes
+yes                         — implement this PR only
+yes-all                     — escalate to --auto for the whole DEC (see B)
+no                          — abort
 show more                   — dump the full PR section from the DEC
 tweak: <what to change>     — adjust the plan, I'll re-preview
 ```
 
-On `tweak: <…>`, the preview re-renders with the adjustment applied. Loop until you say `yes`.
+On `yes`: worktree → implement → tests → commit → push → remove worktree. You get a GitHub compare URL. Continue with `/arch-execute 4 PR-2` when ready.
 
-### Step 5 — the default auto-flow
-
-On `yes`, the plugin does the whole dance automatically:
-
-```
-  1. creates sibling worktree at <repo>.worktrees/DEC-NNN-pr-M-slug/
-  2. implements the PR per the plan
-  3. runs commands.test + commands.build
-  4. commits: refactor(<scope>): <PR title> [DEC-NNN PR-M/total]
-  5. git push -u origin refactor/DEC-NNN-pr-M-slug
-  6. git worktree remove <path>
-```
-
-End result: your main checkout is untouched, the refactor branch sits on `origin` ready for a PR. You get a GitHub compare URL in the report — one click to open the PR.
-
-You keep working on your feature branch the whole time. No merge conflicts, no stashing.
-
-### Step 6 — the next PR
+#### B. Whole DEC in one shot (recommended for clear plans)
 
 ```text
-/arch-execute 4 PR-2
-/arch-execute 4 next       # explicit "next unexecuted"
+/arch-execute 4 --auto
 ```
 
-The plugin tracks which PRs have been executed (in the DEC's Execution log) and picks the next one.
+One preview up front showing every PR in DEC-004. On `yes-all`:
 
-### Step 7 — sweep crust, every few weeks
+```
+1. create ONE worktree at <repo>.worktrees/DEC-004-<slug>/
+2. create ONE branch refactor/DEC-004-<slug>
+3. for each PR 1..N:
+     implement → tests + build → commit
+4. git push -u origin refactor/DEC-004-<slug>
+5. remove worktree
+```
+
+N commits on one branch, one PR on GitHub spanning the whole decomposition. Push the button, get coffee.
+
+#### C. Every DEC in the repo (quarterly tech-debt sprint)
+
+```text
+/arch-execute ALL --auto
+```
+
+Walks every `docs/decomposition/DEC-*.md` with unexecuted PRs. Each DEC gets its own worktree + branch. Single `yes-all-decs` confirmation at the top, then the plugin marches through the whole queue. Stops on the first failure (whichever DEC/PR breaks) with a report of what shipped and what remains.
+
+#### Failure handling (all three modes)
+
+- **Test or build fails** → auto-run halts at that PR; worktree stays on disk with prior commits; report shows which PR failed + first 40 lines of output. Fix manually, resume with `/arch-execute <N> PR-<failed> --inplace` from inside the worktree.
+- **Push fails** (auth / protected branch / non-ff) → worktree stays, commits preserved, retry manually.
+- **Execution log is updated per-PR**, so partial progress survives any abort.
+
+### Step 5 — sweep crust, every few weeks
 
 ```text
 /arch-clean
@@ -172,18 +180,20 @@ Claude lists every file to delete with evidence, asks `yes`, deletes, runs tests
 
 ## Commands
 
-| Command                                  | What it does                                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------- |
-| `/arch-profile-init`                     | One-time per repo: detect stack, generate `.arch-profile.yaml`                  |
-| `/arch-hotspot`                          | Rank hotspots; save row state so later commands can use row numbers             |
-| `/arch-decompose <path\|N\|A-B\|ALL>`    | Plan decomposition(s); parallel sub-agents when ≥ 2 targets                     |
-| `/arch-execute <DEC-N> [PR-M]` `[flags]` | Implement one PR — worktree → test → commit → push → remove (default auto-flow) |
-| `/arch-clean [scope]`                    | Cleanup manifest (L1–L4), no deletions                                          |
-| `/arch-clean-approve <batch>`            | Execute one cleanup batch                                                       |
-| `/arch-review`                           | Fast diff-only architectural review                                             |
-| `/arch-describe [scope]`                 | C4 architectural description (Mermaid)                                          |
-| `/arch-plan`                             | Freeze current plan as ADR                                                      |
-| `/arch-approve [--adr] [--trivial "…"]`  | Unlock edits in strict mode (rarely needed outside strict)                      |
+| Command                                  | What it does                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------- |
+| `/arch-profile-init`                     | One-time per repo: detect stack, generate `.arch-profile.yaml`      |
+| `/arch-hotspot`                          | Rank hotspots; save row state so later commands can use row numbers |
+| `/arch-decompose <path\|N\|A-B\|ALL>`    | Plan decomposition(s); parallel sub-agents when ≥ 2 targets         |
+| `/arch-execute <DEC-N> [PR-M]` `[flags]` | One PR: worktree → test → commit → push → remove                    |
+| `/arch-execute <DEC-N> --auto`           | Whole DEC on one branch, N commits, no prompts between PRs          |
+| `/arch-execute ALL --auto`               | Every DEC with unexecuted PRs, each in its own branch               |
+| `/arch-clean [scope]`                    | Cleanup manifest (L1–L4), no deletions                              |
+| `/arch-clean-approve <batch>`            | Execute one cleanup batch                                           |
+| `/arch-review`                           | Fast diff-only architectural review                                 |
+| `/arch-describe [scope]`                 | C4 architectural description (Mermaid)                              |
+| `/arch-plan`                             | Freeze current plan as ADR                                          |
+| `/arch-approve [--adr] [--trivial "…"]`  | Unlock edits in strict mode (rarely needed outside strict)          |
 
 ### `/arch-execute` flags
 
