@@ -1,63 +1,95 @@
 ---
-description: Execute one PR from a decomposition plan produced by /arch-decompose. Takes DEC id/number and optionally a PR number. Implements the scope, runs tests + build from .arch-profile.yaml, commits on green, appends the DEC file.
+description: Execute one PR from a decomposition plan produced by /arch-decompose. Creates a sibling git worktree (default) so your current checkout stays untouched — you can keep working. Implements the scope, runs tests + build, commits on green, appends the DEC file. Use --inplace for the legacy same-checkout behaviour.
 ---
 
-Takes: `<DEC-N|N>` optionally followed by `<PR-M|M>` (default: first unexecuted PR).
+Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 
 ## Argument forms
 
-- `/arch-execute 4` → PR-1 of DEC-004 (first unexecuted)
-- `/arch-execute DEC-004` → same as above
-- `/arch-execute 4 PR-2` → PR-2 specifically
-- `/arch-execute 4 2` → same
-- `/arch-execute DEC-004 next` → next unexecuted PR (explicit)
+- `/arch-execute 4` → PR-1 of DEC-004 in a fresh worktree
+- `/arch-execute DEC-004 PR-2` → PR-2 specifically, in a worktree
+- `/arch-execute 4 --inplace` → old behaviour (requires clean tree, mutates current checkout)
+- `/arch-execute 4 --base develop` → base the branch off `develop` instead of the repo default
 
 ## Steps
 
-### 1. Resolve the DEC file
-- Normalize the id: `4` → `DEC-004`, `DEC-4` → `DEC-004`, already-padded accepted.
-- Glob `docs/decomposition/<padded>-*.md`. If missing: say "DEC-<id> not found; run `/arch-decompose` first" and stop.
-- Read the file. Extract: Target, chosen Pattern, full PR sequence (Section 4), Success criteria (Section 8), Execution log (if any).
+### 1. Resolve the DEC file and PR
+- Normalize id: `4` → `DEC-004`, globbed at `docs/decomposition/DEC-<padded>-*.md`. If missing → stop and say "run `/arch-decompose` first".
+- Parse: Target, chosen Pattern, full PR sequence, Execution log.
+- If PR not given, pick the lowest PR not in the Execution log. If all done → stop and say so.
 
-### 2. Resolve the PR
-- If specified: use it. Error if out-of-range.
-- Otherwise: pick the lowest PR number that does NOT appear in the Execution log. If all are done → say "All PRs for this DEC have been executed" and stop.
+### 2. Provision isolated worktree (default)
 
-### 3. Preflight
-- `git status --porcelain` — if non-empty, stop and say: "Working tree has uncommitted changes. Commit or stash first."
-- Show the user the current branch. If on main/master/develop, recommend:
-  `git checkout -b refactor/<DEC-id>-pr-<M>-<slug>` (do not auto-run; user's call).
-- Display the PR scope: files changing, new seams, rollout notes, dependencies on earlier PRs.
+**Skip this whole section if `--inplace` was passed.**
 
-### 4. Confirm
-Ask: "Implement PR-<M> of DEC-<id> now? [yes / no / show more]".
-- `show more` → dump the full PR section from the DEC file.
-- `no` → stop.
-- `yes` → proceed.
+- Derive paths:
+  - `REPO_ROOT = $(git rev-parse --show-toplevel)`
+  - `REPO_NAME = basename of REPO_ROOT`
+  - `WORKTREES_DIR = $REPO_ROOT/../${REPO_NAME}.worktrees`  (sibling dir; add it to the user's global gitignore if they want it out of IDE)
+  - `WT_PATH = $WORKTREES_DIR/DEC-<padded>-pr-<M>-<slug>`
+  - `BRANCH = refactor/DEC-<padded>-pr-<M>-<slug>` (slug from PR-M title, kebab-case, ≤ 40 chars)
+- Resolve the base branch: first of `--base <name>` / `.arch-profile.yaml` `default-branch:` / `origin/HEAD` / `main` / `master` that exists.
+- `mkdir -p "$WORKTREES_DIR"`
+- If `"$WT_PATH"` already exists:
+  - Tell the user and ask: reuse (work in it as-is, no new branch), blow away (`git worktree remove --force "$WT_PATH"`), or abort.
+- Otherwise create: `git worktree add -b "$BRANCH" "$WT_PATH" "$BASE"`
+- Copy `.arch-profile.yaml` if it only exists in the current checkout (untracked); otherwise it's already there via git.
+- **The user's original checkout is never modified. They can keep working on whatever branch/feature they have.**
+
+### 3. Preflight (inplace mode only)
+- `git status --porcelain` — if non-empty, stop and say: "Working tree has uncommitted changes. Either commit/stash them, drop `--inplace`, or pass `--inplace --force` (not recommended)."
+- If on main/master, warn and suggest a named branch.
+
+### 4. Display scope + confirm
+Show the user: target file, PR-<M> scope (files touched, seams, rollout), and the destination:
+- worktree mode: `→ worktree: $WT_PATH, branch: $BRANCH, base: $BASE`
+- inplace mode: `→ current checkout, branch: $(git branch --show-current)`
+
+Ask: `Implement PR-<M>? [yes / no / show more]`.
 
 ### 5. Implement
-Invoke the architecture-first skill with the PR scope as the user request. The skill produces Section 1–3 grounded in the DEC plan (no re-planning — the plan already exists) and then writes Section 4 code directly, because the plan is approved via the DEC file.
+Touch the session approval marker at `${TMPDIR:-/tmp}/architecture-first/<md5($WT_PATH or $REPO_ROOT)>-<session_id>.approved` so the hook allows edits.
 
-Touch the session approval marker at `${TMPDIR:-/tmp}/architecture-first/<md5(CLAUDE_PROJECT_DIR)>-<session_id>.approved` so the hook allows edits.
+In **worktree mode**, treat the worktree as the active project: all subsequent `Edit`/`Write` calls use absolute paths under `$WT_PATH`; `Bash` commands run with `cd "$WT_PATH" && …`.
+
+Produce the code per the PR plan. No re-planning — the DEC is the plan of record.
 
 ### 6. Verify
-Read `commands.test` and `commands.build` from `.arch-profile.yaml`:
-- If both defined: run both. On either failure → `git restore .`, report the failure with the first 40 lines of output, leave working tree clean, stop.
-- If neither defined: ask the user for the test command once.
+Read `commands.test` and `commands.build` from `.arch-profile.yaml` at the active path. Run both inside the worktree (or current dir for inplace). If either fails:
+- worktree: leave it on disk for inspection, report failure with first 40 lines of output.
+- inplace: `git restore .` and report.
 
 ### 7. Commit
-On green:
+On green, inside the active path:
 - `git add -A`
-- `git commit -m "refactor(<scope>): <PR title> [DEC-<id> PR-<M>/<total>]"` where `<scope>` is inferred from the paths changed (or the module name from `.arch-profile.yaml`), `<PR title>` is the first line of PR-<M> in the DEC file.
-- Do NOT push — user pushes manually after reviewing.
+- `git commit -m "refactor(<scope>): <PR title> [DEC-<padded> PR-<M>/<total>]"`
+- **No push.** User reviews and pushes manually.
 
 ### 8. Update the DEC file
-Append to the Execution log section:
+Append the Execution log (in the ORIGINAL checkout's DEC file, not the worktree's — the source of truth is the user's main checkout):
 ```
-- PR-<M> executed <YYYY-MM-DD>, commit <sha> — tests <status>, build <status>
+- PR-<M> executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <path>) — tests ✓, build ✓
 ```
 
-### 9. Report
-- If PRs remain: `✓ PR-<M> done. Next: /arch-execute <id> PR-<M+1>`.
-- If final PR: update the DEC `Status:` to `done` in the header. Say: `✓ DEC-<id> complete.`
-- If the DEC has a linked ADR: remind the user to update the ADR status accordingly.
+### 9. Report + cleanup guidance
+
+**Worktree mode:**
+```
+✓ PR-<M> done.
+  worktree: /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
+  branch:   refactor/DEC-001-pr-1-portfolio-service
+  commit:   <sha>
+
+Review the diff, push when ready:
+  cd /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
+  git push -u origin refactor/DEC-001-pr-1-portfolio-service
+
+Next PR: /arch-execute <id> PR-<M+1>  (will create its own worktree)
+
+When the PR is merged, clean up:
+  git worktree remove /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
+```
+
+**Inplace mode:** as before — user is already on the branch, just needs to push.
+
+If this was the final PR of the DEC, update the file header `Status:` to `done` and add a concluding line to Execution log.
