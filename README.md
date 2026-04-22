@@ -314,6 +314,50 @@ cd architecture-first-plugin && git pull && ./install.sh
 
 PRs welcome — especially new stack profiles. Copy `skills/architecture-first/references/stack-profiles/generic-layered.md`, fill in layer names, thresholds, and anti-patterns. Add a detection row to `_detect.md`.
 
+## Updating the plugin
+
+When a new version is released:
+
+### Claude Code — marketplace install
+
+```text
+/plugin marketplace update architecture-first-marketplace
+/plugin install architecture-first@architecture-first-marketplace --update
+```
+
+### Claude Code — manual install (via `./install.sh`)
+
+```bash
+cd /path/to/architecture-first-plugin
+git pull origin main
+./install.sh          # idempotent — refreshes files, de-dupes hook entry
+```
+
+### Cursor IDE
+
+Cursor picks up `.cursor/rules/*.mdc` and `.cursor-plugin/plugin.json` on restart. To refresh prompt snippets in a project:
+
+```bash
+cd /path/to/architecture-first-plugin
+git pull origin main
+./cursor/install.sh /path/to/your-project
+```
+
+After restart, Cursor reloads the rule. Notepads you saved from snippets won't auto-update — re-import from the new `.cursor/prompts-architecture-first/*.md` if you use them.
+
+### Optional: pre-commit LoC gate
+
+Zero-LLM Python script in `hooks/arch-precommit-check.py` that warns when a staged source file approaches / crosses the hotspot threshold from `.arch-profile.yaml`.
+
+Install once per repo (Husky-style example):
+
+```bash
+ln -sf ~/.claude/plugins/architecture-first/hooks/arch-precommit-check.py .husky/arch-check
+echo './.husky/arch-check' >> .husky/pre-commit
+```
+
+Add `precommit: warn-only` to `.arch-profile.yaml` if you want warnings without blocking commits past the XL threshold.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

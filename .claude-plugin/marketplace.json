@@ -8,7 +8,7 @@
       "name": "architecture-first",
       "source": "./",
       "description": "Dual-lens architect + cleaner plugin. Forces architectural reasoning before code; detects hotspots; plans safe decompositions; classifies cleanup work by safety level.",
-      "version": "0.6.4",
+      "version": "0.7.0",
       "category": "development",
       "tags": [
         "architecture",
