@@ -47,6 +47,19 @@ Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 
 ### 4. Display scope + confirm (rich preview)
 
+**Critical — do NOT re-analyze the codebase here.** The DEC file is the plan of record. It was produced by `/arch-decompose` after a full hotspot analysis of the target. Reading the source again, grepping for callers, checking where symbols are registered, etc. — all of that work was already done and is captured in the DEC. Repeating it wastes a turn and risks diverging from the agreed plan.
+
+**Render the preview purely from the DEC file's contents.** Extract:
+
+- **Architecture before/after** — take the Mermaid from Section 3 of the DEC ("Target architecture"). If the DEC only has an after-diagram, infer the before-diagram from the DEC's Evidence table (current LoC, responsibility count) — no code reads.
+- **Files touched** — from the DEC's PR-<M> entry in Section 4 (PR sequence). If the DEC lists file paths there, use them. If it's high-level ("extract avatar service"), derive file names by convention (`<module>/services/<new-name>.service.ts`) — still no code reads.
+- **What moves** — from the DEC's Section 1 (Evidence → responsibility clusters) matched to this PR's scope.
+- **Callers that continue to work** — from the DEC's backward-compat notes or the Pattern section (Strangler / Branch-by-Abstraction plans always list these). If the DEC did not record callers, write "callers: per DEC — delegation preserves the public API" rather than grepping.
+- **Tests** — from the DEC's Section 8 (Success criteria) and any Tests subsection if present.
+- **Risks + alternatives** — directly from Sections 2 and 7 of the DEC.
+
+The **only** new work allowed at this step is rendering these into the preview format. If a field is genuinely missing from the DEC (rare — the decomposer should have captured it), state that explicitly in the preview: `(not captured in DEC — will re-check in Step 5)`. Do not silently go fill the gap by reading source.
+
 Produce a fully-visualized preview **before** asking for confirmation. Sections in this order:
 
 #### Header
