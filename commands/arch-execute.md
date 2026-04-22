@@ -1,15 +1,18 @@
 ---
-description: Execute one PR from a decomposition plan produced by /arch-decompose. Creates a sibling git worktree (default) so your current checkout stays untouched — you can keep working. Implements the scope, runs tests + build, commits on green, appends the DEC file. Use --inplace for the legacy same-checkout behaviour.
+description: Execute one PR from a decomposition plan. Default flow: creates a sibling git worktree, implements the PR, runs tests + build, commits, pushes the branch to origin, and removes the worktree — leaving you with a clean checkout and a ready-to-PR branch on GitHub. Use --inplace, --no-push, --keep for finer control.
 ---
 
 Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 
 ## Argument forms
 
-- `/arch-execute 4` → PR-1 of DEC-004 in a fresh worktree
-- `/arch-execute DEC-004 PR-2` → PR-2 specifically, in a worktree
-- `/arch-execute 4 --inplace` → old behaviour (requires clean tree, mutates current checkout)
+- `/arch-execute 4` → PR-1 of DEC-004: worktree → implement → test → commit → **push** → remove worktree
+- `/arch-execute DEC-004 PR-2` → PR-2 specifically, same full flow
+- `/arch-execute 4 --no-push` → commit only; do not push, do not remove the worktree
+- `/arch-execute 4 --keep` → push, but keep the worktree on disk for manual review
+- `/arch-execute 4 --inplace` → mutate current checkout instead of a worktree; commits locally, does not push
 - `/arch-execute 4 --base develop` → base the branch off `develop` instead of the repo default
+- Flags combine: `/arch-execute 4 --base develop --keep`
 
 ## Steps
 
@@ -145,7 +148,29 @@ On green, inside the active path:
 
 - `git add -A`
 - `git commit -m "refactor(<scope>): <PR title> [DEC-<padded> PR-<M>/<total>]"`
-- **No push.** User reviews and pushes manually.
+
+### 7a. Auto-push (worktree mode default)
+
+Unless `--no-push` was passed OR mode is inplace, push the branch:
+
+- `git push -u origin "$BRANCH"` (from within the worktree)
+- If push **fails** (auth, non-fast-forward, protected branch, network, etc.): leave the worktree alive, skip removal, report the git error with its first 20 lines, and tell the user exactly how to retry — `cd "$WT_PATH" && git push -u origin "$BRANCH"`. Still proceed to step 8 to record the commit in the DEC execution log (so the work is not lost).
+- If push **succeeds**: continue to step 7b.
+
+### 7b. Auto-remove worktree (worktree mode default)
+
+Unless `--keep` was passed OR push failed OR mode is inplace:
+
+- Return to the main checkout: `cd "$REPO_ROOT"`.
+- `git worktree remove "$WT_PATH"` — removes the worktree directory and cleans up `.git/worktrees/` metadata. The branch itself stays in the local repo and tracks `origin/<BRANCH>`.
+- If removal fails (e.g. nested untracked files the user added): report the error and tell the user how to force it (`git worktree remove --force "$WT_PATH"`) — do NOT force automatically.
+
+The refactor is now:
+
+- committed locally ✓
+- pushed to origin ✓
+- available as a branch for opening a PR ✓
+- not sitting in a leftover directory ✓
 
 ### 8. Update the DEC file
 
@@ -155,26 +180,55 @@ Append the Execution log (in the ORIGINAL checkout's DEC file, not the worktree'
 - PR-<M> executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <path>) — tests ✓, build ✓
 ```
 
-### 9. Report + cleanup guidance
+### 9. Report
 
-**Worktree mode:**
+Pick the shape that matches what actually happened:
+
+**Full auto (default happy path):**
 
 ```
-✓ PR-<M> done.
-  worktree: /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
+✓ PR-<M>/<total> done.
   branch:   refactor/DEC-001-pr-1-portfolio-service
   commit:   <sha>
+  pushed:   origin/refactor/DEC-001-pr-1-portfolio-service
+  worktree: removed
 
-Review the diff, push when ready:
-  cd /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
-  git push -u origin refactor/DEC-001-pr-1-portfolio-service
+Open a PR on GitHub:
+  https://github.com/<org>/<repo>/compare/refactor/DEC-001-pr-1-portfolio-service?expand=1
+  (or: gh pr create --fill)
 
-Next PR: /arch-execute <id> PR-<M+1>  (will create its own worktree)
-
-When the PR is merged, clean up:
-  git worktree remove /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
+Next PR: /arch-execute <id> PR-<M+1>
 ```
 
-**Inplace mode:** as before — user is already on the branch, just needs to push.
+**`--no-push` or push failed:**
+
+```
+✓ PR-<M>/<total> implemented, but not pushed.
+  worktree: <WT_PATH>
+  branch:   <BRANCH>
+  commit:   <sha>
+
+Push when ready:
+  cd <WT_PATH>
+  git push -u origin <BRANCH>
+
+After merge, clean up:
+  git worktree remove <WT_PATH>
+```
+
+**`--keep`:**
+
+```
+✓ PR-<M>/<total> done, worktree kept for review.
+  branch:   <BRANCH>
+  commit:   <sha>
+  pushed:   origin/<BRANCH>
+  worktree: <WT_PATH> (kept)
+
+After you're done with it:
+  git worktree remove <WT_PATH>
+```
+
+**Inplace mode:** user is already on the branch, commit done, no push. Mention the branch name and remind them to push.
 
 If this was the final PR of the DEC, update the file header `Status:` to `done` and add a concluding line to Execution log.
