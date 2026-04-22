@@ -1,6 +1,6 @@
 {
   "name": "architecture-first",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Stack-agnostic dual-lens plugin for Claude Code: architect and cleaner think simultaneously on every non-trivial change. Forces situation \u2192 plan \u2192 structure \u2192 code; detects hotspots; plans safe decompositions; identifies and batches deletions with safety levels L1-L4. Universal across NestJS, Next.js, Express, Spring, Laravel, Django, FastAPI, Rails, Go, Rust.",
   "author": {
     "name": "Subx1s0o",

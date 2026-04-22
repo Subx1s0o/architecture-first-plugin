@@ -82,33 +82,78 @@ For `--auto` / `yes-all` / `yes-all-decs`:
    - Run `commands.test` + `commands.build`. On failure: stop the whole auto-run, leave worktree, report the failing PR + first 40 lines of output. Do NOT push. User fixes and resumes with `/arch-execute <N> PR-<failed> --inplace` from inside the worktree.
    - Commit: `refactor(<scope>): <PR title> [DEC-<id> PR-<M>/<total>]`.
    - Append original DEC's Execution log per-PR so progress survives aborts.
-3. After final PR commits: one `git push -u origin "$BRANCH"` (unless `--no-push`), then `git worktree remove "$WT_PATH"` (unless `--keep`).
+3. After final PR commits: push (step 6), then cleanup (step 7).
 
 For `ALL --auto`: iterate DECs. Each DEC = independent worktree/branch, all branched from the same base. Stop entire queue on first DEC's first failure.
 
 Mid-run, a single PR that removes ≥ 200 lines triggers the mass-deletion gate: pause, ask for `/arch-clean-approve`, resume.
 
-### 6. Verify + 7. Commit + 7a. Push + 7b. Remove worktree
+### 6. Push (skip if `--inplace` or `--no-push`)
 
-Single-PR mode: same per-PR commit/push/remove as step 5-auto does per iteration.
+```bash
+cd "$WT_PATH" && git push -u origin "$BRANCH"
+```
 
-On push failure: keep worktree, show git error (first 20 lines), tell user how to retry. Still record commit in Execution log.
+On failure: keep worktree, show git error (first 20 lines), tell user how to retry with `cd <wt> && git push …`. Record commit in Execution log anyway. **Do NOT proceed to step 7** — worktree must stay for retry.
+
+### 7. Remove worktree — MUST RUN, verify success
+
+**This step is not optional.** Every auto-run and every default single-PR run ends here. The only cases where it's skipped:
+
+- `--keep` flag was passed
+- `--inplace` mode (no worktree existed)
+- `--no-push` flag (worktree kept for manual push)
+- Push failed in step 6 (worktree kept for retry)
+
+Otherwise you **must**:
+
+```bash
+cd "$REPO_ROOT" && git worktree remove "$WT_PATH"
+```
+
+Then **verify** with one of these (must succeed, otherwise report the state truthfully):
+
+```bash
+[ ! -d "$WT_PATH" ] && echo "removed" || echo "still exists"
+git worktree list | grep -q "$WT_PATH" && echo "still registered" || echo "unregistered"
+```
+
+Both checks should show the worktree gone and unregistered. If the remove failed (nested untracked files, permission, etc.) — do NOT retry with `--force` automatically. Report the exact error and tell the user the precise command: `git worktree remove --force "$WT_PATH"`.
+
+**Never claim "worktree removed" in the report unless the verification above passed.** Under-promising here is fine; lying about state is not.
 
 ### 8. Update DEC
 
 Append to Execution log (in the ORIGINAL checkout, not the worktree):
 
 ```
-- PR-<M> executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <path>) — tests <status>, build <status>[, auto: true]
+- PR-<M> executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <removed|kept at <path>|kept — push failed>) — tests <status>, build <status>[, auto: true]
 ```
+
+The worktree field must reflect what step 7's verification actually observed — not what the command was supposed to do.
 
 Final PR of a DEC → update `Status:` to `done`.
 
-### 9. Report
+### 9. Report — self-check before claiming success
 
-Shape by what happened:
+Before emitting the report, run one last verification:
 
-- Full auto success: `✓ PR-<M>/<total> done. branch: <b>, commit: <sha>, pushed, worktree removed. Open PR: https://github.com/<org>/<repo>/compare/<b>?expand=1. Next: /arch-execute <id> PR-<M+1>` (or `DEC done` on final).
+- If step 7 was supposed to run but `$WT_PATH` still exists → the report says `worktree: kept — remove failed (<reason>)` with the exact remove command. It does NOT say "worktree removed".
+- If push was supposed to run but `git ls-remote origin "$BRANCH"` returns nothing → say `pushed: no (<error>)`, not "pushed".
+
+Report shapes:
+
+- Full auto success (step 7 verified clean): `✓ PR-<M>/<total> done. branch: <b>, commit: <sha>, pushed, worktree removed. Open PR: https://github.com/<org>/<repo>/compare/<b>?expand=1. Next: /arch-execute <id> PR-<M+1>` (or `DEC done` on final).
 - `--no-push` / push failed: branch/commit info + `cd <wt> && git push -u origin <b>`; cleanup reminder.
 - `--keep`: push success + `git worktree remove <wt>` when done.
 - `--inplace`: branch + reminder to push.
+- Remove failed: honest state + the `git worktree remove --force` line for the user.
+
+### Pre-start hygiene — auto-collect orphan worktrees
+
+As the very first thing when `/arch-execute` runs (before step 1), glob `<repo>.worktrees/DEC-*` and for each `$WT`:
+
+- If `git -C "$WT" rev-parse HEAD 2>/dev/null` shows a commit that appears in any DEC's Execution log with status `executed + pushed`, AND `git ls-remote origin <branch>` confirms the branch is on origin → run `git worktree remove "$WT"` silently. Report at the end: `Cleaned N orphan worktrees from previous runs.`
+- Otherwise leave alone (either partial/failed runs user hasn't resolved, or `--keep` worktrees).
+
+This prevents leftover worktrees from accumulating if earlier runs forgot to clean up.

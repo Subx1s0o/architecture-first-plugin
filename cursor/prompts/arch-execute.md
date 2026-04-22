@@ -28,7 +28,9 @@ Steps:
 
 7a. Auto-push (default, unless --no-push or inplace): `cd $WT_PATH && git push -u origin $BRANCH`. On failure: keep worktree, show git error (first 20 lines), tell user how to retry. Still record commit in execution log so work isn't lost.
 
-7b. Auto-remove worktree (default, unless --keep or --no-push or inplace or push failed): `cd $REPO_ROOT && git worktree remove $WT_PATH`. Never force automatically — on failure tell user how (`--force`).
+7b. Auto-remove worktree — MUST RUN and MUST VERIFY. Skip only on --keep / --inplace / --no-push / push-failed. Run `cd $REPO_ROOT && git worktree remove $WT_PATH`, then verify: `[ ! -d "$WT_PATH" ]` AND `git worktree list | grep -qv "$WT_PATH"`. Both must pass. On failure DO NOT force automatically — report the exact error and tell user: `git worktree remove --force "$WT_PATH"`. DEC Execution log `worktree:` field must reflect actual observed state (removed / kept at path / kept — push failed) — never claim "removed" if verification didn't pass.
+
+Also: as the FIRST step before step 1, glob <repo>.worktrees/DEC-* and auto-remove any worktree whose HEAD matches a DEC Execution log entry marked executed+pushed (confirmed via `git ls-remote origin`) — catches orphans from earlier runs that forgot cleanup. Report at the end: `Cleaned N orphan worktrees`.
 
 8. Append the ORIGINAL checkout's DEC file Execution log: date, sha, branch, worktree path, push status, tests/build.
 
