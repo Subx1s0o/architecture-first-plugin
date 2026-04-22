@@ -179,14 +179,15 @@ The marker expires after 24h and lives only in the OS temp dir — never in your
 
 ## Workflow
 
-1. You describe what you want.
-2. The skill produces a 4-section response.
-3. The hook decides automatically:
-   - **Trivial change** (small diff in a normal-sized file, docs/config, tests, build artefacts) → passes through silently, you don't see the gate at all.
-   - **Significant change** (new module, file ≥ 500 LoC, 30+ line diff, migrations, large new file) → blocked. Review the plan, then `/arch-approve`.
-4. Claude writes the code. Surgical — no unrequested refactors.
+**The plugin stays out of your way by default.** It does not auto-invoke itself on routine edits — you ask for it when you want it.
 
-`/arch-approve` is bare — no required args. Just hit it once you're happy with the plan.
+1. For routine work (bug fixes, small features, typos) — just code normally. The skill is silent, the hook only protects against mass deletion (≥ 200 lines).
+2. For architectural work — ask explicitly: "review the architecture of X", "plan a refactor of Y", "find hotspots", "decompose this file", "write an ADR", or run any `/arch-*` command.
+3. The skill then produces the 4-section response (Situation → Plan → Structure → Code). Confirm the plan, Claude writes the code.
+
+### Strict mode (opt-in)
+
+If you want the old hard-gate behaviour — every significant change blocked until you approve the plan — add `strict-gate: true` to `.arch-profile.yaml`, or run one session with `ARCH_STRICT=1`. In strict mode `/arch-approve` unlocks the session for significant edits.
 
 ### What counts as "trivial" (auto-passes)
 

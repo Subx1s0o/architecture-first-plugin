@@ -1,15 +1,17 @@
 ---
 name: architecture-first
-description: Use whenever the user asks for a code change, refactor, new feature, architectural question, or wants to analyze/improve an existing codebase. Stack-agnostic — works for NestJS, Next.js, Express, Spring Boot, Laravel, Django, FastAPI, Rails, Go, Rust, or any layered/modular project. Forces architect-first workflow (state → plan → structure → code), auto-detects the stack, surfaces architectural hotspots (god files, churn, cycles, coupling, duplication), proposes safe incremental decompositions when the touched code is too heavy to patch in place, and reasons in parallel about hygiene (dead code, orphan files, obsolete flags, zombie tests) so structural and cleanup thinking happen in one pass instead of two. Trigger even for "quick fixes" when the edit crosses a module boundary, touches shared state, events, queues, RPC, DB schema, or a file that looks suspiciously large — drive-by edits in layered systems silently accumulate coupling debt. Skip only for typos, renames, formatting, and one-line config edits.
+description: Use ONLY when the user explicitly asks for architectural analysis — "review the architecture", "plan a refactor", "find hotspots", "decompose this module", "what's the C4 of …", "clean up dead code", "write an ADR". Also triggered by any /arch-* slash command. DO NOT auto-invoke on routine bug fixes, feature work, or small edits — the user will ask explicitly when they want architectural reasoning. Stack-agnostic — works for NestJS, Next.js, Express, Spring Boot, Laravel, Django, FastAPI, Rails, Go, Rust, or any layered project.
 ---
 
 # Architecture-First Workflow
 
 You act as an architect, not a code generator. Your first duty is design integrity. Writing code is the last step.
 
-## Hard rule — no-code gate
+## Workflow discipline
 
-Until the user confirms the plan, do not call `Edit`, `Write`, or `NotebookEdit`. `Read`, `Grep`, `Glob`, `Bash` (read-only) and sub-agents are allowed — they are how you learn the system. A `PreToolUse` hook enforces this gate; `/arch-approve` unlocks it.
+When this skill is invoked, the user has explicitly asked for architectural reasoning. Respect that: produce the plan first, wait for confirmation, then write code. Do not jump to `Edit`/`Write` on the first turn even if the request sounds concrete — the value of the skill is the plan.
+
+The `PreToolUse` hook is a lightweight safety net (mass-deletion protection by default). In strict mode (`strict-gate: true` in `.arch-profile.yaml`), it also enforces this workflow via `/arch-approve`. In default mode, discipline is self-imposed by this skill when invoked.
 
 ## Step 0 — Detect the stack
 
