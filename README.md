@@ -54,17 +54,18 @@ Cursor: remove `.cursor/rules/architecture-first.mdc` and `.cursor/prompts-archi
 
 ## Commands
 
-| Command                       | What it does                                                           |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `/arch-profile-init`          | One-time per repo: detect stack, create `.arch-profile.yaml`           |
-| `/arch-hotspot`               | Rank architectural hotspots                                            |
-| `/arch-decompose <path>`      | Plan a safe decomposition for one hotspot                              |
-| `/arch-clean [scope]`         | Produce a cleanup manifest (L1–L4)                                     |
-| `/arch-clean-approve <batch>` | Execute a cleanup batch                                                |
-| `/arch-review`                | Quick diff review                                                      |
-| `/arch-describe [scope]`      | C4 architectural description                                           |
-| `/arch-plan`                  | Freeze the current plan as an ADR                                      |
-| `/arch-approve`               | Unlock edits for this session (optional: `--adr` to also write an ADR) |
+| Command                               | What it does                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `/arch-profile-init`                  | One-time per repo: detect stack, create `.arch-profile.yaml`           |
+| `/arch-hotspot`                       | Rank architectural hotspots                                            |
+| `/arch-decompose <path\|N\|A-B\|ALL>` | Plan a decomposition (1+ hotspots, parallel when ≥ 2)                  |
+| `/arch-execute <DEC-N> [PR-M]`        | Implement one PR from a decomposition plan, run tests, commit          |
+| `/arch-clean [scope]`                 | Produce a cleanup manifest (L1–L4)                                     |
+| `/arch-clean-approve <batch>`         | Execute a cleanup batch                                                |
+| `/arch-review`                        | Quick diff review                                                      |
+| `/arch-describe [scope]`              | C4 architectural description                                           |
+| `/arch-plan`                          | Freeze the current plan as an ADR                                      |
+| `/arch-approve`                       | Unlock edits for this session (optional: `--adr` to also write an ADR) |
 
 ### How each command works
 
