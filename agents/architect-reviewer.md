@@ -1,6 +1,6 @@
 ---
 name: architect-reviewer
-description: Deep architectural review for any layered/modular codebase. Invoke when a change spans 3+ modules, crosses service boundaries, introduces new events/queues/RPC, or touches code in hot-modules (per .arch-profile.yaml). Returns a structured findings report with severity and suggested seams.
+description: Deep structural review for changes spanning 3+ modules, crossing services, introducing events/queues/RPC, or touching hot-modules. Returns severity-ranked findings + suggested seams. Invoked by architecture-first on tier M+.
 tools: Read, Grep, Glob, Bash
 ---
 

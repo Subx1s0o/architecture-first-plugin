@@ -1,5 +1,5 @@
 ---
-description: Produce a C4 architectural description of a feature, module, or the whole service. Read-only. Useful for onboarding, ADR drafting, or diffing intent vs. reality.
+description: C4 architectural description of feature/module/service. Mermaid. Read-only.
 ---
 
 Takes an optional scope (module name, feature keyword, or path). If empty, describe the whole service.

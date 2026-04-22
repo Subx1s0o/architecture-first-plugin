@@ -1,5 +1,5 @@
 ---
-description: Plan a safe decomposition for one or many hotspots. Accepts a path, a row number from the last /arch-hotspot run, a range like 1-5, a list like 1,3,5, or ALL. Delegates to hotspot-decomposer sub-agent (in parallel when ≥ 2 targets).
+description: Plan decomposition for one or many hotspots. Accepts path, row number from /arch-hotspot, range 1-5, list 1,3,5, or ALL. Parallel sub-agents when ≥ 2 targets.
 ---
 
 Takes one argument. Forms:

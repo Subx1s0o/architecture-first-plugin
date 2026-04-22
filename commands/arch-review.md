@@ -1,5 +1,5 @@
 ---
-description: Review the current git diff for architectural red flags (cross-boundary imports, missing seams, event orphans, a service reaching into another module's internals). Fast path — no sub-agent.
+description: Quick architectural review of current git diff — cross-boundary imports, missing seams, event orphans. No sub-agent.
 ---
 
 Run `git diff --stat` and `git diff` (staged + unstaged), then for every changed source file under `src/` (or the stack profile's source root):

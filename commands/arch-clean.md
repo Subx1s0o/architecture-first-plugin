@@ -1,5 +1,5 @@
 ---
-description: Run the cleaner over a scope (path arg, default whole repo). Produces a cleanup manifest classified by safety level L1-L4. Does not delete anything.
+description: Cleanup manifest (L1-L4 safety levels). No deletions.
 ---
 
 1. Detect the stack via `skills/architecture-first/references/stack-profiles/_detect.md`; load the profile's thresholds.

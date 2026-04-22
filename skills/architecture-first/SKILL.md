@@ -1,6 +1,6 @@
 ---
 name: architecture-first
-description: Use ONLY when the user explicitly asks for architectural analysis — "review the architecture", "plan a refactor", "find hotspots", "decompose this module", "what's the C4 of …", "clean up dead code", "write an ADR". Also triggered by any /arch-* slash command. DO NOT auto-invoke on routine bug fixes, feature work, or small edits — the user will ask explicitly when they want architectural reasoning. Stack-agnostic — works for NestJS, Next.js, Express, Spring Boot, Laravel, Django, FastAPI, Rails, Go, Rust, or any layered project.
+description: Architectural analysis on demand — review, plan refactor, find hotspots, decompose modules, C4 description, cleanup, ADR. Triggered ONLY by explicit ask or /arch-* commands. Never auto-invokes on routine edits. Stack-agnostic.
 ---
 
 # Architecture-first

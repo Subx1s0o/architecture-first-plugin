@@ -1,6 +1,6 @@
 ---
 name: hotspot-decomposer
-description: Deep analysis of a single architectural hotspot and proposal of a safe decomposition. Invoke when architecture-first identifies XL code or the user runs /arch-decompose. Produces a decomposition plan using the playbook — does not write code.
+description: Confirm one hotspot + propose safe decomposition plan via the playbook. Writes a DEC-*.md with PR sequence, Mermaid target, rollout safety. No code writes. Invoked by /arch-decompose.
 tools: Read, Grep, Glob, Bash
 ---
 

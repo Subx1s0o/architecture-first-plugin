@@ -1,5 +1,5 @@
 ---
-description: Interactive refactor assistant. You describe a feature / file / module and I walk you through an architectural review, propose 2-3 refactor options with tradeoffs, discuss, and only then (on your explicit ask) write a plan or execute. If you say "just refactor it", I skip the plan and do it. Manual trigger only — not invoked automatically on routine edits.
+description: Interactive refactor assistant — review, propose 2-3 options, discuss, then (on your ask) plan or execute. Manual trigger only. Supports `just refactor it` shortcut to skip planning.
 ---
 
 Args: free-form scope (feature description / path / module name).

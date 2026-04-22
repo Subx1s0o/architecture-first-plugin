@@ -1,5 +1,5 @@
 ---
-description: Detect the project's stack and generate a per-repo .arch-profile.yaml tuned to it. One-time setup per repo.
+description: Detect stack and generate per-repo .arch-profile.yaml. One-time setup.
 ---
 
 1. Follow the detection table in `skills/architecture-first/references/stack-profiles/_detect.md` to pick the matching profile. Report the decision.

@@ -1,5 +1,5 @@
 ---
-description: Scan the repo for architectural hotspots and rank them. Uses cheap signals first, then semantic ones. No writes. Saves a state file so /arch-decompose can reference rows by number.
+description: Rank architectural hotspots (size × churn × cycles × fan-in). Saves state file so /arch-decompose can reference rows by number. Read-only.
 ---
 
 1. Detect the stack via `skills/architecture-first/references/stack-profiles/_detect.md`. Load thresholds from the matching profile; override with `.arch-profile.yaml` `thresholds:` if present.

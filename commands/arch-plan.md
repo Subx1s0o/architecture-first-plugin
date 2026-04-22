@@ -1,5 +1,5 @@
 ---
-description: Capture the current architectural plan from the conversation as a persistent ADR. Useful mid-discussion to freeze a decision before diving into code.
+description: Freeze the current conversation's architectural plan as an ADR.
 ---
 
 1. Collect the latest architect-style plan in the conversation (sections 1–3 of the 4-step response).

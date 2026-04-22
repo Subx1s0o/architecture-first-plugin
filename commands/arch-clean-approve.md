@@ -1,5 +1,5 @@
 ---
-description: Authorize and execute a cleanup batch from a manifest. Writes an ephemeral cleanup marker in /tmp so the pre-edit hook allows mass deletions for this batch only.
+description: Authorize + execute a cleanup batch. Writes ephemeral /tmp marker to lift mass-deletion gate for one batch.
 ---
 
 Takes `<batch-id>` (e.g. `CLN-003-batch-B`).

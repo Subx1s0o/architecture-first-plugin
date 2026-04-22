@@ -1,5 +1,5 @@
 ---
-description: Unlock Edit/Write for this session. Zero-args form — just approves. Add --adr to also write an ADR from the plan, or --trivial "reason" to log a bypass reason.
+description: Unlock Edit/Write for the session. Zero-args = just approve. `--adr` writes an ADR. `--trivial "reason"` logs a bypass.
 ---
 
 Three forms, all just touch an ephemeral session marker under `${TMPDIR:-/tmp}/architecture-first/`:
