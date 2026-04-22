@@ -54,17 +54,17 @@ Cursor: remove `.cursor/rules/architecture-first.mdc` and `.cursor/prompts-archi
 
 ## Commands
 
-| Command                         | What it does                                                 |
-| ------------------------------- | ------------------------------------------------------------ |
-| `/arch-profile-init`            | One-time per repo: detect stack, create `.arch-profile.yaml` |
-| `/arch-hotspot`                 | Rank architectural hotspots                                  |
-| `/arch-decompose <path>`        | Plan a safe decomposition for one hotspot                    |
-| `/arch-clean [scope]`           | Produce a cleanup manifest (L1–L4)                           |
-| `/arch-clean-approve <batch>`   | Execute a cleanup batch                                      |
-| `/arch-review`                  | Quick diff review                                            |
-| `/arch-describe [scope]`        | C4 architectural description                                 |
-| `/arch-plan`                    | Freeze the current plan as an ADR                            |
-| `/arch-approve [--trivial "…"]` | Unlock edits after the plan is agreed                        |
+| Command                       | What it does                                                           |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `/arch-profile-init`          | One-time per repo: detect stack, create `.arch-profile.yaml`           |
+| `/arch-hotspot`               | Rank architectural hotspots                                            |
+| `/arch-decompose <path>`      | Plan a safe decomposition for one hotspot                              |
+| `/arch-clean [scope]`         | Produce a cleanup manifest (L1–L4)                                     |
+| `/arch-clean-approve <batch>` | Execute a cleanup batch                                                |
+| `/arch-review`                | Quick diff review                                                      |
+| `/arch-describe [scope]`      | C4 architectural description                                           |
+| `/arch-plan`                  | Freeze the current plan as an ADR                                      |
+| `/arch-approve`               | Unlock edits for this session (optional: `--adr` to also write an ADR) |
 
 ### How each command works
 
@@ -165,12 +165,13 @@ Cursor: remove `.cursor/rules/architecture-first.mdc` and `.cursor/prompts-archi
 </details>
 
 <details>
-<summary><code>/arch-approve [--trivial "&lt;reason&gt;"]</code> — unlock edits for this session</summary>
+<summary><code>/arch-approve</code> — unlock edits for this session</summary>
 
-1. Computes a marker path: `$TMPDIR/architecture-first/<md5(project_dir)>-<session>.approved`.
-2. If `--trivial "<reason>"`: touches the marker with that reason + timestamp. Stops. No ADR written.
-3. Otherwise: populates `ADR.md.tmpl` with the current plan, writes `docs/adr/ADR-<N>-<slug>.md`, touches the marker with `approved: ADR-<N>`.
-4. Confirms: `✓ Edit gate lifted.`
+Three forms, all touch an ephemeral marker under `$TMPDIR/architecture-first/`:
+
+1. **`/arch-approve`** — bare. Touch the marker. Confirm `✓ Edit gate lifted.`
+2. **`/arch-approve --adr`** — also write `docs/adr/ADR-<N>-<slug>.md` from the current plan.
+3. **`/arch-approve --trivial "<reason>"`** — optional bypass reason, logged but not persisted as an ADR.
 
 The marker expires after 24h and lives only in the OS temp dir — never in your project tree.
 
@@ -185,7 +186,7 @@ The marker expires after 24h and lives only in the OS temp dir — never in your
    - **Significant change** (new module, file ≥ 500 LoC, 30+ line diff, migrations, large new file) → blocked. Review the plan, then `/arch-approve`.
 4. Claude writes the code. Surgical — no unrequested refactors.
 
-For a one-off exception when you know better: `/arch-approve --trivial "<reason>"`.
+`/arch-approve` is bare — no required args. Just hit it once you're happy with the plan.
 
 ### What counts as "trivial" (auto-passes)
 
@@ -238,7 +239,7 @@ Session markers live under the OS temp dir (`$TMPDIR` / `%TEMP%`), **never in yo
 
 ## Troubleshooting
 
-- **`BLOCKED: no approved plan`** — run `/arch-approve` after the plan looks right. For real trivia: `/arch-approve --trivial "<reason>"`.
+- **`BLOCKED: no approved plan`** — run `/arch-approve` after the plan looks right. No args needed.
 - **Hook not firing** — re-run `./install.sh` (idempotent).
 - **Skill doesn't trigger** — the request was too short. Add context like "in module X".
 

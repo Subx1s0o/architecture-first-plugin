@@ -1,23 +1,18 @@
 ---
-description: Unlock Edit/Write for this session after the architectural plan has been agreed. Optionally writes an ADR from the plan. Use --trivial "<reason>" for typo/formatting-only edits.
+description: Unlock Edit/Write for this session. Zero-args form — just approves. Add --adr to also write an ADR from the plan, or --trivial "reason" to log a bypass reason.
 ---
 
-Markers are ephemeral — they live under `${TMPDIR:-/tmp}/architecture-first/` and NEVER in the project tree. They also auto-expire after 24 hours.
+Three forms, all just touch an ephemeral session marker under `${TMPDIR:-/tmp}/architecture-first/`:
 
-1. Compute `proj_hash = md5(CLAUDE_PROJECT_DIR)` and derive:
-   `marker = ${TMPDIR:-/tmp}/architecture-first/<proj_hash>-<session_id>.approved`
-   Create the parent directory if missing.
+1. **`/arch-approve`** — bare. Touch the marker. Confirm with `✓ Edit gate lifted.`
+2. **`/arch-approve --trivial "<reason>"`** — touch the marker, append the reason + timestamp to an in-memory log line. No ADR.
+3. **`/arch-approve --adr`** — touch the marker AND write an ADR from sections 1–3 of the current conversation to `docs/adr/ADR-<next>-<slug>.md` using `templates/ADR.md.tmpl`. Confirm with `✓ Edit gate lifted. ADR-<N> written at <path>.`
 
-2. If the invocation has `--trivial "<reason>"`:
-   - Touch the marker with `trivial: <reason>` and an ISO timestamp.
-   - Stop. Do not write an ADR.
+Steps:
 
-3. Otherwise:
-   - Read the last architectural plan from the current conversation (sections 1–3).
-   - Populate `templates/ADR.md.tmpl` and write the ADR to `docs/adr/ADR-<next>-<slug>.md`.
-   - If `repo-vault-routing` skill is installed, mirror the ADR into the vault.
-   - Touch the marker with `approved: ADR-<number>` and timestamp.
+1. Compute `proj_hash = md5(CLAUDE_PROJECT_DIR)` and `marker = ${TMPDIR:-/tmp}/architecture-first/<proj_hash>-<session_id>.approved`. Create the parent dir if missing.
+2. Touch the marker.
+3. If `--adr`: populate `templates/ADR.md.tmpl` from the current plan and write it under `docs/adr/`.
+4. Confirm.
 
-4. Confirm: `✓ Edit gate lifted. ADR-<number> written at <path>.` (or `✓ Edit gate lifted (trivial: <reason>).`)
-
-Do not write anything under `<project>/.claude/`.
+Do not prompt the user for a reason. Do not write anything under `<project>/.claude/`.

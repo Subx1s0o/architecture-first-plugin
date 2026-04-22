@@ -214,8 +214,7 @@ def main() -> int:
         f"  diff:    ~{max(count_lines(old_s), count_lines(new_s))} lines\n"
         "\n"
         "Produce the 4-step response (Situation -> Plan -> Structure -> Code),\n"
-        "then /arch-approve to proceed.\n"
-        'For a one-off exception: /arch-approve --trivial "<reason>"',
+        "then /arch-approve to proceed.",
         file=sys.stderr,
     )
     return 2
