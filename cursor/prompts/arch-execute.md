@@ -1,6 +1,9 @@
-Execute one PR from a decomposition plan. Default flow: create a sibling git worktree → implement → test + build → commit → push → remove worktree. Result: clean checkout + ready-to-PR branch on origin.
+Execute one PR, all PRs of one DEC, or every DEC in the repo. Modes:
+  single-PR (default): /arch-execute <DEC-N|N> [PR-M|next] — preview + yes/no per PR
+  auto (one DEC):      /arch-execute <N> --auto — one worktree, one branch, N commits, one push at the end; no prompts between PRs
+  auto (all DECs):     /arch-execute ALL --auto — each DEC in its own worktree + branch, done in sequence, one yes-all-decs confirmation at the top
 
-Argument forms: <DEC-N|N> [PR-M|M|next] [--inplace] [--no-push] [--keep] [--base <branch>].
+Flags: --inplace (no worktree, no push; incompatible with --auto), --no-push, --keep, --base <branch>.
 
 Steps:
 
@@ -10,7 +13,7 @@ Steps:
 
 3. Inplace mode (--inplace): fail if git dirty; warn if on main/master; no push, no remove.
 
-4. RICH PREVIEW before yes/no. **Do NOT re-analyze the codebase here** — the DEC file is the plan of record. Render the preview PURELY from the DEC's contents: architecture diagram from Section 3, files/what-moves from the PR entry in Section 4, callers/tests/risks/alternatives from Sections 1-2-7-8. No grep, no new Read calls on source files. If a field is missing from the DEC, write `(not captured in DEC)` rather than going to fill the gap. Sections: Header / Architecture before→after (Mermaid flowchart LR with BEFORE+AFTER subgraphs, LoC on nodes, callers shown explicitly, delegation arrows dashed). STRICT Mermaid rules: use <br/> for line breaks (never \n which renders literally), give every edge a label (A -->|'calls'| B, A -.->|'delegates to'| B), use unique node IDs across subgraphs (rB vs rA), highlight the new/extracted unit with `style newId fill:#1b4332,stroke:#2d6a4f,color:#fff`. If the DEC lacks caller info, show a generic `clients[...]` node and note it — don't invent callers / Files touched (clickable repo-root-relative markdown links) / What moves / Callers that continue to work / Tests (existing pins + new + gaps) / Risks + mitigation / Alternatives / Destination. Ask: `yes | no | show more | tweak: <what>`. On tweak re-render.
+4. RICH PREVIEW before yes/no. **Do NOT re-analyze the codebase here** — the DEC file is the plan of record. Render the preview PURELY from the DEC's contents: architecture diagram from Section 3, files/what-moves from the PR entry in Section 4, callers/tests/risks/alternatives from Sections 1-2-7-8. No grep, no new Read calls on source files. If a field is missing from the DEC, write `(not captured in DEC)` rather than going to fill the gap. Sections: Header / Architecture before→after (Mermaid flowchart LR with BEFORE+AFTER subgraphs, LoC on nodes, callers shown explicitly, delegation arrows dashed). STRICT Mermaid rules: use <br/> for line breaks (never \n which renders literally), give every edge a label (A -->|'calls'| B, A -.->|'delegates to'| B), use unique node IDs across subgraphs (rB vs rA), highlight the new/extracted unit with `style newId fill:#1b4332,stroke:#2d6a4f,color:#fff`. If the DEC lacks caller info, show a generic `clients[...]` node and note it — don't invent callers / Files touched (clickable repo-root-relative markdown links) / What moves / Callers that continue to work / Tests (existing pins + new + gaps) / Risks + mitigation / Alternatives / Destination. Ask (single-PR): `yes | yes-all | no | show more | tweak: <what>`. Auto mode prompt: `yes-all` (one DEC) or `yes-all-decs` (every DEC). On tweak re-render. On yes-all / yes-all-decs, follow the auto-mode flow: one worktree per DEC with DEC-level slug (not PR-level), commit per PR with message `refactor(<scope>): <PR title> [DEC-<id> PR-<M>/<total>]`, run tests+build between each PR, stop and leave worktree on first failure, push + remove at the end of each DEC.
 
 5. On yes, implement per the plan.
 

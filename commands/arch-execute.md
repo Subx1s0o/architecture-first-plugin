@@ -1,18 +1,30 @@
 ---
-description: Execute one PR from a decomposition plan. Default flow: creates a sibling git worktree, implements the PR, runs tests + build, commits, pushes the branch to origin, and removes the worktree — leaving you with a clean checkout and a ready-to-PR branch on GitHub. Use --inplace, --no-push, --keep for finer control.
+description: Execute one PR, all PRs of one DEC, or every DEC in the repo. Default flow per PR: sibling git worktree → implement → tests + build → commit → push → remove worktree. In --auto mode, implements every remaining PR of the DEC (or every DEC in the repo when target is ALL) in one shot after a single yes-all confirmation, stacking commits on one branch per DEC. Use --inplace, --no-push, --keep for finer control.
 ---
 
-Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
+Takes: `<DEC-N|N|ALL>` optionally followed by `<PR-M|M|next>` and optional flags.
 
 ## Argument forms
 
-- `/arch-execute 4` → PR-1 of DEC-004: worktree → implement → test → commit → **push** → remove worktree
-- `/arch-execute DEC-004 PR-2` → PR-2 specifically, same full flow
-- `/arch-execute 4 --no-push` → commit only; do not push, do not remove the worktree
-- `/arch-execute 4 --keep` → push, but keep the worktree on disk for manual review
-- `/arch-execute 4 --inplace` → mutate current checkout instead of a worktree; commits locally, does not push
-- `/arch-execute 4 --base develop` → base the branch off `develop` instead of the repo default
-- Flags combine: `/arch-execute 4 --base develop --keep`
+### Single-PR mode (default — safest)
+
+- `/arch-execute 4` → PR-1 of DEC-004: worktree → implement → test → commit → push → remove. Rich preview + per-PR `yes/no/show more/tweak` prompt.
+- `/arch-execute DEC-004 PR-2` → PR-2 specifically, same flow.
+- `/arch-execute 4 next` → explicit "next unexecuted PR".
+
+### Fire-and-forget mode
+
+- `/arch-execute 4 --auto` → **all remaining PRs of DEC-004 sequentially, stacked on ONE branch `refactor/DEC-004-<slug>`**. Single preview up front showing the whole DEC, then one `yes-all` and the plugin marches through every PR without further prompts. Tests + build run between each PR. One worktree for the whole DEC, one branch, N commits, one push at the end.
+- `/arch-execute ALL --auto` → every DEC in `docs/decomposition/` that has unexecuted PRs, each in its own worktree and branch, done sequentially. One preview per DEC, one `yes-all-decs` at the top, then the plugin ships the whole queue.
+
+### Flag modifiers
+
+- `--no-push` → commit only; do not push, do not remove the worktree.
+- `--keep` → push, but keep the worktree on disk for manual review.
+- `--inplace` → mutate current checkout instead of a worktree; commits locally, does not push. Incompatible with `--auto` (refuse with a message).
+- `--base <branch>` → base the refactor branch off `<branch>` instead of the repo default.
+
+Flags combine: `/arch-execute 4 --auto --keep --base develop`.
 
 ## Steps
 
@@ -164,17 +176,39 @@ One risk per line, colon-separated from its mitigation.
 
 #### Ask
 
-Close with this exact prompt — four options, not two:
+Pick the prompt based on mode:
+
+**Single-PR mode (default):**
 
 ```
 Ready to implement? Reply with one of:
-  yes                         — proceed as shown
+  yes                         — proceed with this PR
+  yes-all                     — implement ALL remaining PRs of this DEC (auto mode)
   no                          — abort, no changes
   show more                   — dump the full PR section from the DEC file
   tweak: <what to change>     — adjust the plan, I'll re-preview
 ```
 
-On `tweak: <...>`: re-derive the affected sections (Files, What moves, Callers, Tests, Risks, and the Architecture diagram if structure changed) and print the full preview again with the adjustment applied. Loop until `yes`, `no`, or `show more`.
+**`--auto` mode for one DEC (user passed `--auto` up front OR just replied `yes-all`):**
+
+```
+Auto-mode: implement PR-1..PR-<total> of DEC-<id> sequentially on one branch
+`refactor/DEC-<id>-<slug>`. Tests + build run between each PR. No further
+prompts — I'll commit per PR and push once at the end. Reply:
+  yes-all                     — go
+  no                          — abort
+```
+
+**`ALL --auto` mode across every DEC:**
+
+```
+Queue: <N> DECs with <M> total unexecuted PRs. Each DEC gets its own worktree
+and branch. I'll process them in order and stop on the first failure.
+  yes-all-decs                — go
+  no                          — abort
+```
+
+On `tweak: <...>`: re-derive the affected sections and print the preview again. Loop until one of the terminal responses.
 
 ### 5. Implement
 
@@ -183,6 +217,33 @@ Touch the session approval marker at `${TMPDIR:-/tmp}/architecture-first/<md5($W
 In **worktree mode**, treat the worktree as the active project: all subsequent `Edit`/`Write` calls use absolute paths under `$WT_PATH`; `Bash` commands run with `cd "$WT_PATH" && …`.
 
 Produce the code per the PR plan. No re-planning — the DEC is the plan of record.
+
+### 5-auto. Implement (auto-mode — for `--auto` / `yes-all` / `yes-all-decs`)
+
+Auto-mode ships an entire DEC (or an entire queue of DECs) on a single branch per DEC, with N commits, without prompting between PRs.
+
+**For one DEC (`--auto` / `yes-all`):**
+
+1. Worktree path + branch in auto-mode use the DEC-level slug, not the PR-level slug:
+   - `WT_PATH = <repo>.worktrees/DEC-<padded>-<slug>`
+   - `BRANCH  = refactor/DEC-<padded>-<slug>`
+2. Create the worktree once (same `git worktree add -b "$BRANCH" "$WT_PATH" "$BASE"` as single-PR mode).
+3. For each unexecuted PR in order:
+   a. Implement the PR's scope inside `$WT_PATH`. DEC is the plan of record — no re-analysis.
+   b. Run `commands.test` and `commands.build` from the worktree. On **any failure**: stop the whole auto-run, leave the worktree on disk with the commits done so far, report which PR failed and the first 40 lines of output, do NOT push. User can fix manually and `/arch-execute <N> PR-<failed> --inplace` from inside the worktree.
+   c. On green: `git add -A && git commit -m "refactor(<scope>): <PR title> [DEC-<padded> PR-<M>/<total>]"`.
+   d. Append Execution log in the ORIGINAL checkout's DEC file with date, sha, branch, test/build status, and `auto: true`. Do this per-PR so progress is visible even if the run aborts mid-way.
+4. After the final PR commits cleanly: one `git push -u origin "$BRANCH"`, then `git worktree remove "$WT_PATH"` (unless `--keep` / `--no-push`).
+5. Report: DEC done, N PRs shipped, branch on origin, GitHub compare URL.
+
+**For every DEC (`ALL --auto` / `yes-all-decs`):**
+
+1. Enumerate `docs/decomposition/DEC-*.md` with `Status: proposed` or with any unexecuted PRs. Order by DEC number unless the summary table specifies a different order.
+2. For each DEC in the queue, run the single-DEC `--auto` flow above. Each DEC gets its own worktree + branch, independent of the others (all branched from the same base — no stacking across DECs).
+3. Stop the entire queue on the first DEC's first failure. Report which DEC + PR failed, what's been done, and what remains.
+4. Final report: a table of all DECs processed with their branches, commit counts, and GitHub compare URLs.
+
+Between PRs of the same DEC the hook's edit-gate marker from step 5 stays valid (same session, same worktree) — no need to re-approve. Mass-deletion gate can still fire if a single PR removes ≥ 200 lines; in that case the auto-run pauses, tells the user to run `/arch-clean-approve` for the batch, and waits for confirmation before continuing.
 
 ### 6. Verify
 
