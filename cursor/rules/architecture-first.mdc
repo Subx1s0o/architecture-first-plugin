@@ -61,3 +61,7 @@ Mermaid over ASCII. Clickable file links `[file.ts:42](src/file.ts#L42)`. One id
 
 ## Per-repo profile
 Read `.arch-profile.yaml` from project root if present — its `hot-modules`, `allowed-module-edges`, `thresholds`, `glossary` override defaults.
+
+## Language
+
+Respond in the same language the user is writing in (detect from the latest user message). Keep identifiers in English regardless: slash commands / prompt names (@arch-*), file paths, DEC-* / CLN-* / ADR-* IDs, tier names (XS/S/M/L/XL), safety levels (L1-L4), code blocks, Mermaid labels, and headers of files you write to disk. Translate only free-form prose: findings, recommendations, risks, questions, progress updates.

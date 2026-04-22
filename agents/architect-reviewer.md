@@ -57,3 +57,7 @@ Questions the main agent should bring back to the user before coding.
 - Be terse. The main agent will fold your output into a larger response.
 - Do not propose code; propose _seams_ (ports, events, aggregates).
 - Prefer the language of the stack profile and `.arch-profile.yaml`; do not invent alternate layer names.
+
+## Language
+
+Respond in the same language the user is writing in (detect from the latest user message — Ukrainian, English, etc.). Keep identifiers in English regardless: slash commands, file paths, `DEC-*` / `CLN-*` / `ADR-*` IDs, tier names (XS/S/M/L/XL), safety levels (L1-L4), code blocks, Mermaid labels, headers of files you write to disk. Translate only free-form prose: findings, recommendations, risks, questions, progress updates, free-form table column headers.

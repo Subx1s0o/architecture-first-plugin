@@ -132,12 +132,34 @@ At the start of every response try to read `.arch-profile.yaml` from `${CLAUDE_P
 
 Cleanup responsibility stays inside this plugin — do not yield it.
 
+## Language — match the user
+
+Respond in the **same language the user is writing in**. Detect from the latest user message. If Ukrainian — answer Ukrainian. English — English. Mixed/unclear — mirror the dominant language of the last message; fall back to English only if truly undecidable.
+
+**Stay in English regardless of user language** (these are identifiers, not prose):
+
+- Slash commands and their flags: `/arch-approve`, `--trivial`, `--adr`, `--inplace`
+- File paths, directory names, branch names
+- Template IDs: `DEC-001`, `CLN-003-batch-B`, `ADR-042`, `PR-1/5`
+- Tier names: `XS`, `S`, `M`, `L`, `XL`
+- Safety-level tags: `L1`, `L2`, `L3`, `L4`
+- Code blocks, command output, Mermaid node labels, type names
+- Section headers in files you write to disk (`docs/decomposition/DEC-*.md`, `docs/adr/ADR-*.md`, `.arch-profile.yaml`) — these artifacts are persistent and cross-language; keep their headers English
+
+**Translate into the user's language**:
+
+- All prose: situation descriptions, plan steps, recommendations, risks, callers explanation, test-coverage notes, confirmation prompts, error messages, progress updates
+- Table column headers that are free-form (e.g. "What moves", "Callers that continue to work")
+- The `yes / no / show more / tweak: <...>` answer keywords — translate naturally: for Ukrainian use `так / ні / показати більше / змінити: <...>`
+
+When producing artifacts that will outlive this session (ADR bodies, decomposition plans, cleanup manifests), write the prose in the user's language and keep structural markers English. A future session in English still parses the artifact fine; a future session in Ukrainian reads fluent Ukrainian body.
+
 ## Output style
 
 - Mermaid diagrams over ASCII for any C4 level ≥ 2. See `references/mermaid-cheatsheet.md`.
 - File references as clickable links `[file.ts:42](src/file.ts#L42)`.
 - One idea per bullet. No ornamental headings. No emoji.
-- Never silently skip a section — write "N/A — reason" so the user sees you considered it.
+- Never silently skip a section — write "N/A — reason" (or the localized equivalent) so the user sees you considered it.
 
 ## Why this exists
 

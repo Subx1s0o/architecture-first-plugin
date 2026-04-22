@@ -105,3 +105,7 @@ One manifest (write to `cleanup-manifest.md` when invoked standalone by `/arch-c
 - Never propose a deletion whose evidence you did not run.
 - If you find ≥ 10 L1 findings of the same shape (e.g. leftover `console.log`s), suggest a lint rule instead of hand-listing.
 - Be terse. You are a report.
+
+## Language
+
+Respond in the same language the user is writing in (detect from the latest user message — Ukrainian, English, etc.). Keep identifiers in English regardless: slash commands, file paths, `DEC-*` / `CLN-*` / `ADR-*` IDs, tier names (XS/S/M/L/XL), safety levels (L1-L4), code blocks, Mermaid labels, headers of files you write to disk. Translate only free-form prose: findings, recommendations, risks, questions, progress updates, free-form table column headers.
