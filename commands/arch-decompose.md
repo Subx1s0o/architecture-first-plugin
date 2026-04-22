@@ -28,9 +28,16 @@ Takes one argument. Forms:
 
 4. Each sub-agent produces a decomposition plan written to `docs/decomposition/DEC-<next-number>-<slug>.md` using `templates/decomposition-plan.md.tmpl`. Confirm the `docs/decomposition/` directory once if it doesn't exist yet.
 
-5. After all agents return, produce a summary table:
+5. After all agents return, produce a summary table. **Every Target and DEC-file cell must be a clickable markdown link**, not plain text:
+   - Target cell: ``[`<short-path>`](<absolute-or-repo-relative-path>)`` — point at the hotspot source file, e.g. ``[`followers.service.ts`](src/followers/followers.service.ts)``.
+   - DEC file cell: `[DEC-NNN](docs/decomposition/DEC-NNN-<slug>.md)`.
 
+   ```
    | Target | DEC file | Pattern | Effort (PRs) | Recommended |
    |---|---|---|---|---|
+   | [`portfolios.service.ts`](src/portfolios/portfolios.service.ts) | [DEC-001](docs/decomposition/DEC-001-portfolios-service.md) | Extract Port + Query Object | 3 | Act now |
+   ```
 
-   End with: "Pick one and I'll execute the first PR, or say `defer` to ticket them all."
+   Use paths relative to the repo root (what `git ls-files` would show) so Claude Code and Cursor render them as clickable links in the IDE.
+
+   End with: "Click any DEC link to open the plan. Run `/arch-execute <N>` to implement the first PR, or say `defer` to ticket them all."
