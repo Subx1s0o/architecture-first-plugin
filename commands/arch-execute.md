@@ -14,6 +14,7 @@ Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 ## Steps
 
 ### 1. Resolve the DEC file and PR
+
 - Normalize id: `4` → `DEC-004`, globbed at `docs/decomposition/DEC-<padded>-*.md`. If missing → stop and say "run `/arch-decompose` first".
 - Parse: Target, chosen Pattern, full PR sequence, Execution log.
 - If PR not given, pick the lowest PR not in the Execution log. If all done → stop and say so.
@@ -25,7 +26,7 @@ Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 - Derive paths:
   - `REPO_ROOT = $(git rev-parse --show-toplevel)`
   - `REPO_NAME = basename of REPO_ROOT`
-  - `WORKTREES_DIR = $REPO_ROOT/../${REPO_NAME}.worktrees`  (sibling dir; add it to the user's global gitignore if they want it out of IDE)
+  - `WORKTREES_DIR = $REPO_ROOT/../${REPO_NAME}.worktrees` (sibling dir; add it to the user's global gitignore if they want it out of IDE)
   - `WT_PATH = $WORKTREES_DIR/DEC-<padded>-pr-<M>-<slug>`
   - `BRANCH = refactor/DEC-<padded>-pr-<M>-<slug>` (slug from PR-M title, kebab-case, ≤ 40 chars)
 - Resolve the base branch: first of `--base <name>` / `.arch-profile.yaml` `default-branch:` / `origin/HEAD` / `main` / `master` that exists.
@@ -37,17 +38,94 @@ Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 - **The user's original checkout is never modified. They can keep working on whatever branch/feature they have.**
 
 ### 3. Preflight (inplace mode only)
+
 - `git status --porcelain` — if non-empty, stop and say: "Working tree has uncommitted changes. Either commit/stash them, drop `--inplace`, or pass `--inplace --force` (not recommended)."
 - If on main/master, warn and suggest a named branch.
 
-### 4. Display scope + confirm
-Show the user: target file, PR-<M> scope (files touched, seams, rollout), and the destination:
-- worktree mode: `→ worktree: $WT_PATH, branch: $BRANCH, base: $BASE`
-- inplace mode: `→ current checkout, branch: $(git branch --show-current)`
+### 4. Display scope + confirm (rich preview)
 
-Ask: `Implement PR-<M>? [yes / no / show more]`.
+Produce a fully-visualized preview **before** asking for confirmation. Sections in this order:
+
+#### Header
+
+> **DEC-<padded> · PR-<M>/<total> — <PR title>**
+> Pattern: <pattern from DEC>
+> Estimated diff: ~<N> LoC across <K> files
+
+#### Architecture — before → after
+
+Mermaid `flowchart LR` with two subgraphs showing the relevant slice of the module. LEFT = current state (callers → current unit). RIGHT = target state (callers → new seam + old unit delegating). Annotate LoC on each node. Example:
+
+```mermaid
+flowchart LR
+  subgraph B["BEFORE"]
+    b1[PortfoliosService<br/>~850 LoC<br/>avatar + stats + CRUD]
+    ext1[5 callers] --> b1
+  end
+  subgraph A["AFTER PR-1"]
+    a1[PortfoliosService<br/>~700 LoC<br/>stats + CRUD]
+    a2[PortfolioAvatarService<br/>~150 LoC]
+    ext2[5 callers] --> a1
+    a1 -. delegate .-> a2
+  end
+```
+
+Keep it small — the slice of the repo this PR actually changes, not the whole system.
+
+#### Files touched
+
+Table with clickable repo-root-relative links:
+
+| Action | File                                                                                 | Reason                  |
+| ------ | ------------------------------------------------------------------------------------ | ----------------------- |
+| CREATE | [`portfolio-avatar.service.ts`](src/portfolios/services/portfolio-avatar.service.ts) | new seam                |
+| MODIFY | [`portfolios.service.ts`](src/portfolios/portfolios.service.ts)                      | delegate avatar methods |
+
+#### What moves
+
+Inline-code list of symbols / methods being relocated, grouped by intent.
+
+#### Callers that continue to work (backward compat)
+
+Bullet per caller with clickable link, one line why it stays green.
+
+#### Tests
+
+- **Existing pins** — tests that lock current behaviour, with `[file.ts:line](path#Lline)` links.
+- **New tests this PR adds** — one bullet per spec.
+- **Gaps** — behaviour not currently covered; flag as risk.
+
+#### Risks + mitigation
+
+One risk per line, colon-separated from its mitigation.
+
+#### Alternatives considered (from the DEC)
+
+- **Chosen**: <pattern> — why.
+- **Rejected**: <alt> — why not.
+
+#### Destination
+
+- Worktree: `<WT_PATH>` (worktree mode) OR current checkout (inplace)
+- Branch: `<BRANCH>`
+- Base: `<BASE>`
+
+#### Ask
+
+Close with this exact prompt — four options, not two:
+
+```
+Ready to implement? Reply with one of:
+  yes                         — proceed as shown
+  no                          — abort, no changes
+  show more                   — dump the full PR section from the DEC file
+  tweak: <what to change>     — adjust the plan, I'll re-preview
+```
+
+On `tweak: <...>`: re-derive the affected sections (Files, What moves, Callers, Tests, Risks, and the Architecture diagram if structure changed) and print the full preview again with the adjustment applied. Loop until `yes`, `no`, or `show more`.
 
 ### 5. Implement
+
 Touch the session approval marker at `${TMPDIR:-/tmp}/architecture-first/<md5($WT_PATH or $REPO_ROOT)>-<session_id>.approved` so the hook allows edits.
 
 In **worktree mode**, treat the worktree as the active project: all subsequent `Edit`/`Write` calls use absolute paths under `$WT_PATH`; `Bash` commands run with `cd "$WT_PATH" && …`.
@@ -55,18 +133,24 @@ In **worktree mode**, treat the worktree as the active project: all subsequent `
 Produce the code per the PR plan. No re-planning — the DEC is the plan of record.
 
 ### 6. Verify
+
 Read `commands.test` and `commands.build` from `.arch-profile.yaml` at the active path. Run both inside the worktree (or current dir for inplace). If either fails:
+
 - worktree: leave it on disk for inspection, report failure with first 40 lines of output.
 - inplace: `git restore .` and report.
 
 ### 7. Commit
+
 On green, inside the active path:
+
 - `git add -A`
 - `git commit -m "refactor(<scope>): <PR title> [DEC-<padded> PR-<M>/<total>]"`
 - **No push.** User reviews and pushes manually.
 
 ### 8. Update the DEC file
+
 Append the Execution log (in the ORIGINAL checkout's DEC file, not the worktree's — the source of truth is the user's main checkout):
+
 ```
 - PR-<M> executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <path>) — tests ✓, build ✓
 ```
@@ -74,6 +158,7 @@ Append the Execution log (in the ORIGINAL checkout's DEC file, not the worktree'
 ### 9. Report + cleanup guidance
 
 **Worktree mode:**
+
 ```
 ✓ PR-<M> done.
   worktree: /path/to/repo.worktrees/DEC-001-pr-1-portfolio-service
