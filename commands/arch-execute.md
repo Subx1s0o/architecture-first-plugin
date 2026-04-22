@@ -26,19 +26,24 @@ Takes: `<DEC-N|N>` optionally followed by `<PR-M|M|next>` and optional flags.
 
 **Skip this whole section if `--inplace` was passed.**
 
-- Derive paths:
-  - `REPO_ROOT = $(git rev-parse --show-toplevel)`
-  - `REPO_NAME = basename of REPO_ROOT`
-  - `WORKTREES_DIR = $REPO_ROOT/../${REPO_NAME}.worktrees` (sibling dir; add it to the user's global gitignore if they want it out of IDE)
-  - `WT_PATH = $WORKTREES_DIR/DEC-<padded>-pr-<M>-<slug>`
-  - `BRANCH = refactor/DEC-<padded>-pr-<M>-<slug>` (slug from PR-M title, kebab-case, ≤ 40 chars)
-- Resolve the base branch: first of `--base <name>` / `.arch-profile.yaml` `default-branch:` / `origin/HEAD` / `main` / `master` that exists.
-- `mkdir -p "$WORKTREES_DIR"`
-- If `"$WT_PATH"` already exists:
-  - Tell the user and ask: reuse (work in it as-is, no new branch), blow away (`git worktree remove --force "$WT_PATH"`), or abort.
-- Otherwise create: `git worktree add -b "$BRANCH" "$WT_PATH" "$BASE"`
-- Copy `.arch-profile.yaml` if it only exists in the current checkout (untracked); otherwise it's already there via git.
-- **The user's original checkout is never modified. They can keep working on whatever branch/feature they have.**
+**Run every git operation directly via the `Bash` tool. Never write a temporary shell script in `/tmp` or anywhere else — no `create-wt.sh`, no `setup.sh`, no scaffolding files. One `Bash` call per git command, or chain with `&&` if they depend on each other. Scripts are unreviewable noise; inline commands show the user exactly what is happening.**
+
+- Derive paths in a single `Bash` invocation (shell variables in one call):
+  ```bash
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  REPO_NAME="$(basename "$REPO_ROOT")"
+  WORKTREES_DIR="$REPO_ROOT/../${REPO_NAME}.worktrees"
+  WT_PATH="$WORKTREES_DIR/DEC-<padded>-pr-<M>-<slug>"
+  BRANCH="refactor/DEC-<padded>-pr-<M>-<slug>"   # slug kebab-case, ≤ 40 chars
+  ```
+- Resolve the base branch: first of `--base <name>` / `.arch-profile.yaml` `default-branch:` / `origin/HEAD` / `main` / `master` that exists. Check with `git show-ref --verify --quiet refs/heads/<name>` chained via `||`.
+- Create the sibling dir and the worktree in one shot:
+  ```bash
+  mkdir -p "$WORKTREES_DIR" && git worktree add -b "$BRANCH" "$WT_PATH" "$BASE"
+  ```
+- If `"$WT_PATH"` already exists: ask the user whether to reuse, blow away (`git worktree remove --force "$WT_PATH"`), or abort — then run the chosen command directly. Do NOT materialize a wrapper script for the choice.
+- `.arch-profile.yaml` is tracked in git, so it's already in the worktree via the checkout. If by accident it's untracked in the main repo, `cp "$REPO_ROOT/.arch-profile.yaml" "$WT_PATH/"`.
+- **The user's original checkout is never modified.**
 
 ### 3. Preflight (inplace mode only)
 
@@ -70,21 +75,52 @@ Produce a fully-visualized preview **before** asking for confirmation. Sections 
 
 #### Architecture — before → after
 
-Mermaid `flowchart LR` with two subgraphs showing the relevant slice of the module. LEFT = current state (callers → current unit). RIGHT = target state (callers → new seam + old unit delegating). Annotate LoC on each node. Example:
+Mermaid `flowchart LR` with two subgraphs showing the relevant slice of the module. The diagram must answer three questions at a glance:
+
+1. **Who calls the unit** — upstream callers (GraphQL clients, HTTP handlers, other services)
+2. **What the unit does and how big it is** — LoC and the bundled responsibilities
+3. **What changes in this PR** — which piece gets extracted, which edges get redirected, where delegation flows
+
+**Mermaid syntax that works** — strict rules, because the renderer is unforgiving:
+
+- Line breaks inside a node label: use **`<br/>`**, never `\n` (literal `\n` will show up in the rendered box).
+- Keep labels short — 3 lines max per node. Long labels wrap unpredictably.
+- Every edge needs a label unless it is trivial:
+  - solid labeled edge: `A -->|"calls"| B`
+  - dashed labeled edge (delegation / extraction): `A -.->|"delegates to"| B`
+  - bare arrow `-->` is only OK for "calls" where the direction is self-evident
+- Node IDs (b1, a1, etc.) must be unique across both subgraphs. Reusing an id in BEFORE and AFTER merges them into one node.
+- Put the extracted unit on the AFTER side only. Highlight it with `style` for clarity.
+
+**Canonical template** — adapt labels, keep the structure:
 
 ```mermaid
 flowchart LR
   subgraph B["BEFORE"]
-    b1[PortfoliosService<br/>~850 LoC<br/>avatar + stats + CRUD]
-    ext1[5 callers] --> b1
+    direction LR
+    cB["GraphQL callers<br/>(N endpoints)"] -->|"uses"| rB["FollowersResolver<br/>1021 LoC<br/>lifecycle + margin + spot<br/>+ wallet + PnL"]
+    rB -->|"wallets / PnL"| wsB["WalletsService"]
+    rB -->|"copy balances"| cbB["FollowerCopyBalancesService"]
   end
+
   subgraph A["AFTER PR-1"]
-    a1[PortfoliosService<br/>~700 LoC<br/>stats + CRUD]
-    a2[PortfolioAvatarService<br/>~150 LoC]
-    ext2[5 callers] --> a1
-    a1 -. delegate .-> a2
+    direction LR
+    cA["GraphQL callers<br/>(wallet + PnL endpoints)"] -->|"uses"| newA["FollowerWalletResolver<br/>~180 LoC<br/>wallet + balances + PnL"]
+    cA2["GraphQL callers<br/>(lifecycle + margin + spot + subs)"] -->|"uses"| rA["FollowersResolver<br/>~840 LoC<br/>lifecycle + margin + spot + subs"]
+    newA -->|"wallets / PnL"| wsA["WalletsService"]
+    newA -->|"copy balances"| cbA["FollowerCopyBalancesService"]
+    rA -.->|"no longer needs"| wsA
+    style newA fill:#1b4332,stroke:#2d6a4f,color:#fff
   end
 ```
+
+Adapt:
+
+- **Pattern = Extract Resolver / Module / Service**: two units on the AFTER side, callers routed to the new unit for the extracted concern, old unit loses those outbound edges.
+- **Pattern = Extract Port**: old unit stays, AFTER shows new interface between old unit and the concrete adapter; delegation is dashed.
+- **Pattern = Strangler Fig**: a router/facade node appears on AFTER, dashed edges to both old and new with percentages ("50% traffic").
+
+If the DEC does not contain enough information to draw callers (rare — `/arch-decompose` should have captured them), draw a single generic `clients[...]` node and note `(callers not enumerated in DEC)` under the diagram rather than inventing them.
 
 Keep it small — the slice of the repo this PR actually changes, not the whole system.
 

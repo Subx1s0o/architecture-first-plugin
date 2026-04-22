@@ -53,3 +53,31 @@ sequenceDiagram
 - Label every edge with the protocol or event name.
 - Dashed edge for async / best-effort; solid for synchronous / transactional.
 - If you need three colours to explain it, the diagram is wrong — split it.
+
+## Syntax gotchas (the ones that actually bite)
+
+- **Line breaks inside node labels: use `<br/>`, never `\n`.** A quoted label like `"Foo\nBar"` renders with a literal `\n` in the box. Use `"Foo<br/>Bar"` instead.
+- **Node IDs are global within a diagram.** Defining `r1[…]` in `subgraph BEFORE` and `r1[…]` in `subgraph AFTER` merges them into one node spanning both subgraphs. Use distinct IDs per side (`rB` vs `rA`, or `beforeResolver` vs `afterResolver`).
+- **Quote labels with spaces or special characters.** `A[My Label]` sometimes works, `A["My Label"]` always works.
+- **Edge labels need the pipe form** `A -->|"label"| B` — not `A -->"label" B`.
+- **Styling a node** uses a separate statement, not inline: `style nodeId fill:#1b4332,stroke:#2d6a4f,color:#fff`.
+- **`direction LR` inside a subgraph** fixes weird vertical layout when the outer flowchart is also `LR`.
+
+## Before → after pattern (for `/arch-decompose` and `/arch-execute`)
+
+```mermaid
+flowchart LR
+  subgraph B["BEFORE"]
+    direction LR
+    cB["GraphQL callers<br/>(N endpoints)"] -->|"uses"| rB["OldUnit<br/>1000 LoC<br/>concern-A + concern-B"]
+    rB -->|"uses"| depB["Dependency"]
+  end
+  subgraph A["AFTER PR-1"]
+    direction LR
+    cA["GraphQL callers<br/>(concern-A)"] -->|"uses"| newA["ExtractedUnit<br/>~200 LoC<br/>concern-A only"]
+    cA2["GraphQL callers<br/>(concern-B)"] -->|"uses"| rA["OldUnit<br/>~800 LoC<br/>concern-B only"]
+    newA -->|"uses"| depA["Dependency"]
+    rA -.->|"no longer uses"| depA
+    style newA fill:#1b4332,stroke:#2d6a4f,color:#fff
+  end
+```

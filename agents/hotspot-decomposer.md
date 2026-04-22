@@ -18,8 +18,14 @@ You analyze one piece of heavy code and propose a decomposition plan. You do not
 3. **Produce the decomposition plan** using `templates/decomposition-plan.md.tmpl`:
    - Evidence (the hotspot table).
    - Chosen pattern(s).
-   - Target architecture (Mermaid).
-   - PR sequence (one PR = one green build).
+   - **Target architecture (Mermaid)** — strict syntax rules so `/arch-execute` can render this cleanly later:
+     - Use `flowchart LR` with two subgraphs `BEFORE` and `AFTER` showing the same slice of the system.
+     - Line breaks inside node labels: `<br/>`. **Never** `\n` inside a quoted label — it renders as literal `\n` in the box.
+     - Every edge needs a label: `A -->|"calls"| B` for solid, `A -.->|"delegates to"| B` for dashed/delegation.
+     - Node IDs must be unique across both subgraphs (use `rB`/`rA` for before/after of the same concept — never reuse `r1`).
+     - Show upstream callers explicitly (GraphQL clients, HTTP handlers, other services). A diagram without callers leaves `/arch-execute` guessing when it renders the preview.
+     - Highlight the newly-extracted unit with `style newId fill:#1b4332,stroke:#2d6a4f,color:#fff`.
+   - **Per-PR scope** in the PR sequence — for each PR list, at minimum: files created/modified, symbols that move, callers affected, tests to add. `/arch-execute` renders its preview from this section verbatim; under-specifying here forces it to re-analyze code later (bad).
    - Rollout and rollback plan, including flags and parity checks.
    - Sunset date for any transitional scaffolding.
    - Risks and how each is mitigated.
