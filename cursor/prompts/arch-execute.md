@@ -1,7 +1,7 @@
 Execute one PR, all PRs of one DEC, or every DEC in the repo. Modes:
-  single-PR (default): /arch-execute <DEC-N|N> [PR-M|next] — preview + yes/no per PR
-  auto (one DEC):      /arch-execute <N> --auto — one worktree, one branch, N commits, one push at the end; no prompts between PRs
-  auto (all DECs):     /arch-execute ALL --auto — each DEC in its own worktree + branch, done in sequence, one yes-all-decs confirmation at the top
+single-PR (default): /arch-execute <DEC-N|N> [PR-M|next] — preview + yes/no per PR
+auto (one DEC): /arch-execute <N> --auto — one worktree, one branch, N commits, one push at the end; no prompts between PRs
+auto (all DECs): /arch-execute ALL --auto — each DEC in its own worktree + branch, done in sequence, one yes-all-decs confirmation at the top
 
 Flags: --inplace (no worktree, no push; incompatible with --auto), --no-push, --keep, --base <branch>.
 
@@ -10,7 +10,7 @@ Steps:
 1. Resolve DEC(s) by parsing DEC file(s) on disk. The Execution log is the SINGLE source of truth for what's been done — do not use conversation memory.
    Per DEC: parse Status, PR sequence, Execution log. Match execution lines by regex `^\s*-\s*PR-(\d+)\s+executed\b`. `remaining = {1..total} - executed`.
    Skip the DEC if Status is `done` / `abandoned`, or remaining is empty.
-   For ALL --auto: glob docs/decomposition/DEC-*.md, sort by DEC number, show queue WITH `(already done: PR-X, PR-Y)` annotations so the user can sanity-check the parse.
+   For ALL --auto: glob docs/decomposition/DEC-\*.md, sort by DEC number, show queue WITH `(already done: PR-X, PR-Y)` annotations so the user can sanity-check the parse.
    Optional belt-and-braces: `git cat-file -e <sha>` on each claimed commit; if missing, treat the PR as still-remaining unless --trust-log.
    If the user passes explicit PR-M and it's already in the log, refuse (tell them to re-run inside the worktree with --inplace).
 
@@ -20,7 +20,7 @@ Steps:
 
 4. RICH PREVIEW before yes/no. **Do NOT re-analyze the codebase here** — the DEC file is the plan of record. Render the preview PURELY from the DEC's contents: architecture diagram from Section 3, files/what-moves from the PR entry in Section 4, callers/tests/risks/alternatives from Sections 1-2-7-8. No grep, no new Read calls on source files. If a field is missing from the DEC, write `(not captured in DEC)` rather than going to fill the gap. Sections: Header / Architecture before→after (Mermaid flowchart LR with BEFORE+AFTER subgraphs, LoC on nodes, callers shown explicitly, delegation arrows dashed). STRICT Mermaid rules: use <br/> for line breaks (never \n which renders literally), give every edge a label (A -->|'calls'| B, A -.->|'delegates to'| B), use unique node IDs across subgraphs (rB vs rA), highlight the new/extracted unit with `style newId fill:#1b4332,stroke:#2d6a4f,color:#fff`. If the DEC lacks caller info, show a generic `clients[...]` node and note it — don't invent callers / Files touched (clickable repo-root-relative markdown links) / What moves / Callers that continue to work / Tests (existing pins + new + gaps) / Risks + mitigation / Alternatives / Destination. Ask (single-PR): `yes | yes-all | no | show more | tweak: <what>`. Auto mode prompt: `yes-all` (one DEC) or `yes-all-decs` (every DEC). On tweak re-render. On yes-all / yes-all-decs, follow the auto-mode flow: one worktree per DEC with DEC-level slug (not PR-level), commit per PR with message `refactor(<scope>): <PR title> [DEC-<id> PR-<M>/<total>]`, run tests+build between each PR, stop and leave worktree on first failure, push + remove at the end of each DEC.
 
-5. On yes, implement per the plan — but ONLY the files explicitly listed as CREATE/MODIFY/DELETE in the DEC's PR entry (Section 4 Files touched) plus their direct test siblings. FORBIDDEN to touch unless the DEC lists them explicitly: nest-cli.json, tsconfig*.json, package.json, lockfiles, Dockerfile*, docker-compose*, .eslintrc*, .prettierrc*, jest.config*, vite.config*, next.config*, .gitignore, .git/*, .husky/* (pre-commit/pre-push/commit-msg), .github/**, .gitlab-ci.yml, .circleci/*, Makefile, README*, CHANGELOG*, docs/** (except docs/adr/** and docs/decomposition/**). If a refactor genuinely needs one of these, stop and tell user to amend the DEC — don't auto-include.
+5. On yes, implement per the plan — but ONLY the files explicitly listed as CREATE/MODIFY/DELETE in the DEC's PR entry (Section 4 Files touched) plus their direct test siblings. FORBIDDEN to touch unless the DEC lists them explicitly: nest-cli.json, tsconfig*.json, package.json, lockfiles, Dockerfile*, docker-compose*, .eslintrc*, .prettierrc*, jest.config*, vite.config*, next.config*, .gitignore, .git/_, .husky/_ (pre-commit/pre-push/commit-msg), .github/**, .gitlab-ci.yml, .circleci/_, Makefile, README_, CHANGELOG\*, docs/** (except docs/adr/** and docs/decomposition/**). If a refactor genuinely needs one of these, stop and tell user to amend the DEC — don't auto-include.
 
 5b. POST-IMPLEMENT DIFF GUARD — before any `git add` / `git commit`, run `cd $WT_PATH && git status --porcelain` and for every path check: Modified must be in allow-list (restore if not); Added must be in allow-list as CREATE (restore/remove if not); Deleted must be in allow-list as DELETE (`git checkout HEAD -- <path>` to restore if not, report `⚠ Blocked accidental deletion of <path> — not in DEC-<id> PR-<M> Files touched`); Renamed both endpoints must be in allow-list. If any restore happened, do NOT silently commit — report every blocked change and ask user whether to proceed, abort, or amend the DEC. Runs every PR iteration in --auto mode.
 
@@ -30,9 +30,9 @@ Steps:
 
 7a. Auto-push (default, unless --no-push or inplace): `cd $WT_PATH && git push -u origin $BRANCH`. On failure: keep worktree, show git error (first 20 lines), tell user how to retry. Still record commit in execution log so work isn't lost.
 
-7b. Auto-remove worktree — MUST RUN and MUST VERIFY. Skip only on --keep / --inplace / --no-push / push-failed. Run `cd $REPO_ROOT && git worktree remove $WT_PATH`, then verify: `[ ! -d "$WT_PATH" ]` AND `git worktree list | grep -qv "$WT_PATH"`. Both must pass. On failure DO NOT force automatically — report the exact error and tell user: `git worktree remove --force "$WT_PATH"`. DEC Execution log `worktree:` field must reflect actual observed state (removed / kept at path / kept — push failed) — never claim "removed" if verification didn't pass.
+7b. Auto-remove worktree — MUST RUN and MUST VERIFY. Skip only on --keep / --inplace / --no-push / push-failed. Pre-remove drop the `node_modules` symlink and well-known build artifacts (`tsconfig.build.tsbuildinfo`, `dist/`, `.next/`) inside `$WT_PATH` — only safe targets, never `rm -rf` arbitrary paths. Then `cd $REPO_ROOT && git worktree remove $WT_PATH`, verify: `[ ! -d "$WT_PATH" ]` AND `git worktree list | grep -qv "$WT_PATH"`. Both must pass. On failure DO NOT force automatically — report the exact error and tell user: `git worktree remove --force "$WT_PATH"`. DEC Execution log `worktree:` field must reflect actual observed state (removed / kept at path / kept — push failed) — never claim "removed" if verification didn't pass.
 
-Also: as the FIRST step before step 1, glob <repo>.worktrees/DEC-* and auto-remove any worktree whose HEAD matches a DEC Execution log entry marked executed+pushed (confirmed via `git ls-remote origin`) — catches orphans from earlier runs that forgot cleanup. Report at the end: `Cleaned N orphan worktrees`.
+Also: as the FIRST step before step 1, glob <repo>.worktrees/DEC-\* and run the same sweep `/arch-clean-worktrees` does silently — for each: skip if dirty, skip if local commits ahead of upstream, otherwise remove if branch exists on origin. Drop symlinks/build artifacts first as in 7b. End-of-run report: `Cleaned N orphan worktrees, kept M`. For deeper or `--force` cleanup point at `/arch-clean-worktrees`.
 
 8. Append the ORIGINAL checkout's DEC file Execution log: date, sha, branch, worktree path, push status, tests/build.
 

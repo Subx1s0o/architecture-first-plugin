@@ -17,7 +17,16 @@ Flags: `--no-push` (commit only), `--keep` (push, keep worktree), `--inplace` (n
 
 ### 0. Pre-start hygiene
 
-Glob `<repo>.worktrees/DEC-*`. For each: if its HEAD matches a DEC Execution log entry `executed+pushed` AND `git ls-remote origin <branch>` confirms → `git worktree remove` silently. End-of-run report: `Cleaned N orphan worktrees`.
+Run the same sweep as `/arch-clean-worktrees` silently:
+
+```bash
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+WORKTREES_DIR="$REPO_ROOT/../$(basename "$REPO_ROOT").worktrees"
+```
+
+For each `WORKTREES_DIR/DEC-*`: remove if `git ls-remote --exit-code origin <branch>` succeeds, working tree is clean, and `git rev-list --count @{upstream}..HEAD` is 0. Drop `node_modules` symlinks + build-artifact files first (see scope rules in `/arch-clean-worktrees`). Use `git worktree remove` then verify with `[ ! -d "$WT_PATH" ] && git worktree list | grep -qv "$WT_PATH"`. Never `--force` automatically.
+
+Final report line: `Cleaned N orphan worktrees, kept M` (only mention kept entries if any). For deeper or `--force` sweep, point at `/arch-clean-worktrees`.
 
 ### 1. Parse DEC state (Execution log is authoritative)
 
@@ -96,15 +105,21 @@ Fail → keep worktree, show first 20 lines of error, tell user retry command. R
 Non-optional. Skip only on: `--keep`, `--inplace`, `--no-push`, push failed.
 
 ```bash
+rm -f "$WT_PATH/node_modules" "$WT_PATH/tsconfig.build.tsbuildinfo" 2>/dev/null
 cd "$REPO_ROOT" && git worktree remove "$WT_PATH"
 ```
 
+(The first line drops symlinks and well-known build artifacts that would otherwise make `git worktree remove` refuse — only safe targets, never `rm -rf` arbitrary paths.)
+
 Verify both:
+
 ```bash
 [ ! -d "$WT_PATH" ] && git worktree list | grep -qv "$WT_PATH"
 ```
 
 If either fails: do NOT force automatically. Report exact error + `git worktree remove --force "$WT_PATH"` for user. Never claim "worktree removed" unless both checks passed.
+
+If a previous run left this worktree behind, `/arch-clean-worktrees` sweeps it explicitly without invoking the rest of `/arch-execute`.
 
 ### 9. Update DEC
 
@@ -121,6 +136,7 @@ Append to Execution log (in ORIGINAL checkout, not worktree):
 Before report: if step 8 supposed to run but `$WT_PATH` still exists → report `worktree: kept — remove failed`, include force command, NOT "removed". If push supposed to run but `git ls-remote origin "$BRANCH"` empty → report `pushed: no (<error>)`, NOT "pushed".
 
 Shape by actual state:
+
 - Full auto success: `✓ PR-<M>/<total> done. branch: <b>, commit: <sha>, pushed, worktree removed. Open PR: <compare URL>. Next: /arch-execute <id> PR-<M+1>` (or `DEC done` on final).
 - `--no-push` / push failed: branch/commit + `cd <wt> && git push …` + cleanup reminder.
 - `--keep`: push OK + `git worktree remove <wt>` when done.

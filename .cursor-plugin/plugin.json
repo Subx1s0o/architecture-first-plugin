@@ -2,7 +2,7 @@
   "name": "architecture-first",
   "displayName": "Architecture First",
   "description": "Architect + cleaner dual-lens workflow. Forces situation \u2192 plan \u2192 structure \u2192 code, detects hotspots, plans decompositions, classifies cleanup by safety level.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": {
     "name": "Subx1s0o",
     "email": "nazarsabardin@gmail.com"
