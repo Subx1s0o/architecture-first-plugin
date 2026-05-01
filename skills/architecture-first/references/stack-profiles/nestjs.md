@@ -26,6 +26,8 @@ Each feature module exposes a `public.ts` barrel. Cross-module imports go only t
 - `@Global()` modules (hidden coupling).
 - Deep import paths `from '@/other/services/inner/thing'` (use the module barrel).
 - `forwardRef(() => …)` cycles — almost always a missing domain event.
+- **Resolver/controller split by HTTP verb on the same entity.** `XxxBrowseResolver` + `XxxAdminResolver`, `XxxReadController` + `XxxWriteController`, `XxxQueriesResolver` + `XxxMutationsResolver` — both files DI-inject the same operations, bind to the same `@Resolver(() => Xxx)`, and operate on the same model. This is a technical-layer split, not a domain split (see decomposition-playbook A1). Acceptable only when CQRS with separate read models / write models is already the chosen architecture.
+- **Cosmetic file-size cuts.** Splitting a 600-LoC file in half "to fit the threshold" without a named responsibility boundary. The new files have no public contract reviewers can articulate.
 
 ## Preferred decomposition patterns
 
