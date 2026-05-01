@@ -86,34 +86,58 @@ Worktree mode: `Edit`/`Write` use absolute paths under `$WT_PATH`; `Bash` runs `
 
 ### 6. Auto-mode loop (`--auto` / `yes-all` / `yes-all-decs`)
 
+**Early-PR mode is the default.** The PR opens BEFORE any code work, so the human sees a draft on GitHub immediately and can take over if the bot times out, crashes, or fails mid-DEC. Each successful PR-step is pushed individually, so partial progress is durable.
+
 1. ONE worktree per DEC (DEC-level slug). Create once.
-2. For each remaining PR:
+
+2. **Bootstrap commit + push + draft PR** (skip on `--no-pr`, `--inplace`, `--no-push`):
+
+   ```bash
+   cd "$WT_PATH"
+   git commit --allow-empty -m "chore(arch-bot): starting DEC-<id> [<total> PRs queued]"
+   git push -u origin "$BRANCH"
+   ```
+
+   Then open the draft PR via step 7.5's logic (label, title, body) immediately — the body will read "🚧 In progress: 0/<total> PRs done. Bot working in this branch; commits arrive as each PR-step passes tests + build." Capture `PR_URL`.
+
+   Failure handling identical to step 7.5: never abort the run. If push or `gh pr create` fails, log the manual command and continue — work still happens locally, user can recover.
+
+3. For each remaining PR:
    - Implement scope (step 5, with guard).
-   - Run `commands.test` + `commands.build`. Fail → stop whole run, keep worktree, report failing PR + first 40 lines output. Do NOT push. User fixes then `/arch-execute <N> PR-<failed> --inplace`.
+   - Run `commands.test` + `commands.build`.
+     - **Fail** → `git restore` the worktree, append failure note to PR body via `gh pr edit --body-file -`, stop the loop. PR keeps every previously-passing commit. Report failing PR-step + first 40 lines of output. User can pull the branch, fix the failing step, push manually.
+     - **Pass** → continue.
    - Commit: `refactor(<scope>): <PR title> [DEC-<id> PR-<M>/<total>]`.
+   - **Push immediately**: `git push origin "$BRANCH"`. PR auto-updates on GitHub.
    - Append DEC Execution log per-PR (progress survives aborts).
-3. After final PR: push (step 7), cleanup (step 8).
+   - Update PR body progress line: "🚧 In progress: <M>/<total> PRs done."
+
+4. After final PR-step:
+   - Update PR body to "✅ All <total> PRs complete. Ready for human review."
+   - Run cleanup (step 8) on the worktree. Branch + PR remain.
 
 `ALL --auto`: iterate DECs independently. Stop queue on first DEC's first failure.
 
 Mid-run, single PR removing ≥ 200 lines triggers mass-deletion gate: pause, ask for `/arch-clean-approve`, resume.
 
-### 7. Push (skip if `--inplace` or `--no-push`)
+### 7. Push (skip if `--inplace`, `--no-push`, or `--auto` mode where step 6 already pushed every commit)
 
 ```bash
 cd "$WT_PATH" && git push -u origin "$BRANCH"
 ```
 
+In single-PR mode this runs once per call. In `--auto` mode step 6 already pushed each commit individually, so step 7 is a no-op (idempotent — `git push` finds nothing to send).
+
 Fail → keep worktree, show first 20 lines of error, tell user retry command. Record commit in Execution log anyway. Skip steps 7.5 + 8.
 
 ### 7.5. Open PR (skip if `--no-pr`, `--inplace`, `--no-push`, push failed, or single-PR mode without `--pr`)
 
-Open a **draft** PR automatically so the user sees the work landing on GitHub the moment the branch is pushed. Eliminates the manual `gh pr create` step that every CI workflow used to write by hand.
+Open a **draft** PR automatically so the user sees the work landing on GitHub the moment the branch is pushed. In `--auto` mode this runs early (step 6.2) BEFORE code work, with progress updates as each PR-step lands. In single-PR mode (`--pr` opt-in) it runs after the single push.
 
 **When this runs:**
 
-- `--auto` mode (single DEC or `ALL`): YES, by default
-- single-PR mode: NO, unless `--pr` is passed
+- `--auto` mode (single DEC or `ALL`): YES, **early** (step 6.2 — empty bootstrap commit triggers it)
+- single-PR mode: NO, unless `--pr` is passed (then runs after step 7 push)
 - Always skip if `--no-pr`
 
 **Build the PR title:**
