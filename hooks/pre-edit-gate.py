@@ -156,7 +156,15 @@ def main() -> int:
     plan_marker = marker_dir / f"{proj_hash}-{session}.approved"
     clean_marker = marker_dir / f"{proj_hash}-{session}.clean-approved"
 
-    # --- Mass-deletion gate — always active (real safety net) ---
+    # --- Mass-deletion gate — active by default, lifted in --auto contexts ---
+    # Env var ARCH_AUTO_MODE=1 (set by /arch-execute --auto and CI workflows)
+    # bypasses this gate. Auto runs are bounded by jest+tsc gates per PR-step
+    # and by hand-vetted DEC plans, so the 200-line threshold (designed to
+    # catch accidental paste-deletion in interactive sessions) is the wrong
+    # safeguard there. Especially because move-refactors look identical to
+    # mass-deletion when computed naively (lines vanish from one file even
+    # though they reappear in another).
+    auto_mode = os.environ.get("ARCH_AUTO_MODE", "").lower() in ("1", "true", "yes")
     removed = 0
     new_s = tool_input.get("new_string") or tool_input.get("content") or ""
     old_s = tool_input.get("old_string") or ""
@@ -164,13 +172,17 @@ def main() -> int:
         removed = max(0, count_lines(old_s) - count_lines(new_s))
     elif tool == "Write" and not new_s and path and os.path.isfile(path):
         removed = file_line_count(path)
-    if removed >= MASS_DELETION_THRESHOLD and not clean_marker.exists():
+    if removed >= MASS_DELETION_THRESHOLD and not clean_marker.exists() and not auto_mode:
         print(
             f"[architecture-first] BLOCKED: mass deletion ({removed} lines).\n"
             "\n"
             "Large deletions should go through a cleanup manifest:\n"
             "  /arch-clean                    # produce a manifest\n"
-            "  /arch-clean-approve <batch-id> # execute a batch",
+            "  /arch-clean-approve <batch-id> # execute a batch\n"
+            "\n"
+            "If this is a move-refactor (lines vanish from this file but\n"
+            "appear in another), the orchestrator should set\n"
+            "ARCH_AUTO_MODE=1 in its environment.",
             file=sys.stderr,
         )
         return 2
