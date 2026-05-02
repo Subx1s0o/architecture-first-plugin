@@ -242,7 +242,35 @@ Append to Execution log (in ORIGINAL checkout, not worktree):
 - PR-<M> executed <YYYY-MM-DD>, commit <sha> on <branch> (worktree: <removed|kept at <path>|kept — push failed>) — tests <status>, build <status>[, auto: true][, pr: <URL>]
 ```
 
-`worktree:` field reflects observed state, not intent. Final PR → `Status: done`.
+`worktree:` field reflects observed state, not intent.
+
+**Scope-closed cleanup (final PR-step only).** When the just-appended log
+entry was the LAST PR-step in the DEC plan (i.e. the DEC is now fully
+executed), close the scope by removing the DEC file:
+
+```bash
+# Run inside the worktree (or the live branch in --inplace mode), so the
+# deletion lands on the same PR that contains the refactor.
+git rm "docs/decomposition/DEC-<NNN>-<slug>.md"
+git commit -m "chore(arch-bot): close DEC-<NNN> scope — <N> PR-steps complete"
+git push origin "<BRANCH>"
+```
+
+Rationale: scope is closed, the plan has served its purpose. Git history
+preserves the full DEC content (including the final Execution log) on the
+deletion commit, so blame/audits remain answerable. Keeping the file on
+main would force the bot to classify it as "complete, awaiting merge" on
+every subsequent run — extra work for no reader value once the PR is
+merged.
+
+**Skip cleanup** if:
+
+- This is not the final PR-step (more remain — still need the file for resume)
+- Running with `--inplace` and the user explicitly asked to keep the plan
+- Some PR-step earlier in the plan failed and was reverted (DEC is partial,
+  not closed)
+
+Final PR-step report → `Status: done` (and DEC file no longer present).
 
 ### 10. Report (verify before claiming)
 
