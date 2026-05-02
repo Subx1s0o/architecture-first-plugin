@@ -11,7 +11,9 @@ Args: `<DEC-N|N|ALL>` [`<PR-M|M|next>`] [flags].
 - `/arch-execute 4 --auto` — all remaining PRs on ONE branch `refactor/DEC-004-<slug>`, one push, opens **draft PR automatically**.
 - `/arch-execute ALL --auto` — every DEC with remaining PRs, stop on first failure. Each DEC gets its own draft PR.
 
-Flags: `--no-push` (commit only), `--no-pr` (push but don't open PR), `--keep` (push, keep worktree), `--inplace` (no worktree; refuse with `--auto`), `--base <branch>`, `--label <name>` (PR label, default `arch-bot`).
+Flags: `--no-push` (commit only), `--no-pr` (push but don't open PR), `--keep` (push, keep worktree), `--inplace` (no worktree; works on the live checkout. **Allowed with `--auto`** — recommended for CI/headless runners where there is no concurrent local work to isolate from), `--base <branch>`, `--label <name>` (PR label, default `arch-bot`).
+
+**`--auto --inplace` semantics:** same auto-mode loop, but skip worktree create/remove (steps 5-setup and 8). Branch is created directly on the current checkout via `git checkout -b refactor/DEC-NNN-<slug>` (or `git fetch + checkout` in resume mode). All commits, tests, and pushes run on the live working tree. Saves ~30s per run, eliminates node_modules-symlink and jest-config-rebase issues that worktree mode fights with on monorepo-style toolchains.
 
 **PR creation defaults:**
 
