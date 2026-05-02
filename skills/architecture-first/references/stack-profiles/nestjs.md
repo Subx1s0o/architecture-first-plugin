@@ -36,6 +36,17 @@ Each feature module exposes a `public.ts` barrel. Cross-module imports go only t
 - Event-Carried State Transfer between modules (replace `forwardRef`).
 - Saga (for multi-module Bull job chains).
 
+## Visibility & dead-code rule-outs
+
+When the cleaner agent considers M1 (tighten visibility) or L1 (dead-import / commented block), exclude:
+
+- Methods bound by GraphQL decorators (`@Query`, `@Mutation`, `@ResolveField`, `@Subscription`) — invoked by the schema executor, never callers.
+- Methods bound by HTTP decorators (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`).
+- Methods bound by event/queue decorators (`@EventPattern`, `@MessagePattern`, `@OnEvent`, `@Process`, `@Cron`, `@Interval`).
+- NestJS lifecycle hooks (`onModuleInit`, `onApplicationBootstrap`, `onModuleDestroy`, `beforeApplicationShutdown`).
+- Methods in classes annotated `@Schema()`, `@Entity()`, `@ObjectType()`, `@InputType()`, `@ArgsType()` — reflection-targeted.
+- `createParamDecorator((data, ctx) => ...)` callbacks — both params framework-required positional. NEVER rename to `_data`.
+
 ## Testing shape
 
 - Unit: `domain/*.spec.ts` — no Nest testing module.
