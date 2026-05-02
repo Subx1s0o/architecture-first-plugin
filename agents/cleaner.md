@@ -64,21 +64,25 @@ A class member declared `public` (or implicit-public) with **zero callers outsid
 
 Action: remove the dead branch. Mechanical CFG analysis.
 
-## M4 — Inline single-use private helper
+## M4 — Inline single-use private helper [MANIFEST-ONLY, NEVER AUTO-APPLY]
 
 `private foo()` ≤ 10 LOC with **exactly one caller** in the same file.
 
-- Greppable: `this.foo` count = 1 (the call site).
-- Skip: helpers with side effects that benefit from a name, recursive helpers, helpers used in `.spec.ts` via private access.
-- Action: inline the body at the call site, delete the helper.
+**Reason this class is informational only:** a named helper with a single caller may exist for self-documentation, not indirection. `cancelPendingDrainJob(userId, portfolioId)` reads better than `getJob(buildDrainJobId(userId, portfolioId)) → if exists, .remove()` inlined. Inlining a content-bearing name strips intent. This is a judgment call that no mechanical rule can make safely.
 
-## M5 — Hoist repeated literal
+- List as a manifest finding so a human can review one-by-one.
+- **Do NOT include this class in "Recommended PR class".** Even if M4 has the highest count, recommend the next class down.
+- Action when applied manually: inline the body at the call site, delete the helper. Compiler verifies correctness; human decides which ones lose meaningful naming.
+
+## M5 — Hoist repeated literal [MANIFEST-ONLY, NEVER AUTO-APPLY]
 
 Same string or number literal appearing **≥ 3 times in a single file** with no apparent reason.
 
-- Skip: `''`, `' '`, `0`, `1`, `-1`, `100`, common HTTP status numbers, common formatting chars.
-- Skip: literals already named in a nearby `const`.
-- Action: extract to a `const` at the top of the file/class. Replace usages.
+**Reason this class is informational only:** repeated literals are sometimes intentional context-binding. Hoisting `'wallet:drain'` from 3 separate places into one `const QUEUE_NAME` may reduce noise OR may obscure that each call uses the literal for a different reason. Mechanical hoisting can't tell.
+
+- List as a manifest finding for human review.
+- **Do NOT include this class in "Recommended PR class".**
+- Action when applied manually: extract to a `const` at the top of the file/class. Replace usages.
 
 ## M6 — `let` → `const`
 
@@ -118,7 +122,12 @@ Removed from L1 (was wrong):
 ## Recommended PR class
 <the single highest-yield class — orchestrator ships only this class per PR>
 
-Reason: highest yield (<n> findings) and lowest cognitive load on reviewer.
+**Eligible for recommendation:** M1, M2, M3, M6, L1.
+**NEVER recommend:** M4 (judgment-heavy — strips intent-bearing names), M5 (judgment-heavy — repeated literals may be intentional). These appear in the manifest for human review only.
+
+If only M4/M5 have non-zero counts, recommend none — orchestrator must treat as `no-op-no-findings`. Better to say nothing than to ship judgment-tier changes mechanically.
+
+Reason: highest yield (<n> findings) among the auto-apply-eligible classes, lowest cognitive load on reviewer.
 
 ## M1 — Tighten visibility
 | File | Symbol | Line | Evidence (grep) | After |
