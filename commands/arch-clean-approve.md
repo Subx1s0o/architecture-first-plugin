@@ -1,14 +1,14 @@
 ---
-description: Authorize + execute a cleanup batch. Writes ephemeral /tmp marker to lift mass-deletion gate for one batch. Optional --pr flag opens a draft PR automatically.
+description: Authorize + execute a cleanup batch. Writes ephemeral /tmp marker to lift mass-deletion gate for one batch. Optional --pr flag opens a draft PR automatically. --auto skips interactive confirmation (CI mode).
 ---
 
 Takes `<batch-id>` (e.g. `CLN-003-batch-B`) [flags].
 
-Flags: `--pr` (create branch, commit, push, open draft PR), `--no-pr` (default, commit on current branch only), `--label <name>` (default `arch-cleaner`), `--base <branch>` (default `.arch-profile.yaml` `default-branch:` or `main`).
+Flags: `--pr` (create branch, commit, push, open draft PR), `--no-pr` (default, commit on current branch only), `--label <name>` (default `arch-cleaner`), `--base <branch>` (default `.arch-profile.yaml` `default-branch:` or `main`), `--auto` (skip the interactive "yes/approve" gate at step 3 — for CI / autonomous runs where there is no human to answer).
 
 1. Locate the manifest file under `docs/cleanup/`. Read the batch section.
 2. Refuse if the batch contains any L3/L4 finding — those need architect review first. Emit a clear error pointing at `/arch-review`.
-3. List every file and line-range the batch will delete, with the per-row evidence from the manifest. Ask the user for explicit confirmation ("yes" / "approve"). If the user declines, stop.
+3. List every file and line-range the batch will delete, with the per-row evidence from the manifest. **If `--auto`:** print the list and proceed without asking. **Otherwise:** ask the user for explicit confirmation ("yes" / "approve"). If the user declines, stop.
 4. Write the cleanup marker at `${TMPDIR:-/tmp}/architecture-first/<md5(CLAUDE_PROJECT_DIR)>-<session_id>.clean-approved` with `batch: <batch-id>` and an ISO timestamp. Create the parent dir if missing. Do not write anywhere under `<project>/.claude/`.
 5. **If `--pr`:** create branch `chore/cleanup-<batch-id>` from current HEAD before applying edits. Otherwise stay on current branch.
 6. Execute the deletions as one logical change:
