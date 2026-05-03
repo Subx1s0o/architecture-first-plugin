@@ -7,11 +7,17 @@
 ## What it does
 
 - **Non-intrusive by default.** The skill and hook stay silent on routine edits. They activate only when you ask — explicitly ("review architecture", "find hotspots", etc.) or via a `/arch-*` slash command.
-- **Hotspot ranking** across the repo (size × churn × cycles × fan-in) with a ranked table whose rows you reference by number.
-- **Decomposition planning** for one or many hotspots in parallel. Produces `docs/decomposition/DEC-*.md` files with PR sequences, Mermaid target diagrams, rollout safety.
+- **Bias toward leaving healthy code alone.** Every hotspot gets one of three verdicts — `act` / `defer` / `no-op`. The `no-op` verdict is first-class: when the metrics are misleading, the plugin says **"Це норм. Не чіпай."** / **"Leave it alone."** and stops. No PR plan, no risk table, no ceremony.
+- **Anti-pattern heuristics baked in** (`references/known-antipatterns.md`): thin transport adapters, format-churn hotspots, leaf-of-tree fan-in, single-cluster small files, façade-narrowing without cycle proof, speculative reuse. The decomposer runs these before writing any plan and refuses on first match.
+- **Hotspot ranking** across the repo (size × **decay-adjusted** churn × cycles × fan-in modules) with a ranked table whose rows you reference by number. Each row carries a likely verdict so you know what `/arch-decompose <N>` will return before you run it.
+- **Cleanup-first gate.** When the cleaner finds ≥ 10 L1/L2 items, decomposition is gated behind `/arch-clean`. Dead-code removal often makes several DECs unnecessary.
+- **DEC budget cap.** ≤ 3 active DECs (`Status: proposed | in progress`) per repo at a time. New DEC creation blocks until one closes. `no-op` DECs don't count against the budget.
+- **Session trigger gate.** First `/arch-*` per session asks: feature-pushed / proactive-cleanup / curiosity. The third option refuses decomposers entirely.
+- **Decomposition planning** for one or many hotspots in parallel. Produces `docs/decomposition/DEC-*.md` files with PR sequences, Mermaid target diagrams, rollout safety. `no-op` DECs use a `-noop` suffix and need no further action.
 - **PR execution in a sibling git worktree** — your main checkout stays untouched. Full auto-flow by default: implement → test → build → commit → push → remove worktree. Failure-safe (push fails? worktree stays for retry).
 - **Rich preview before implementing.** Before any code, you see Mermaid before/after, file tree, affected callers, tests, risks, alternatives. Four options: `yes | no | show more | tweak: <what to change>` (tweak loops until you're happy).
 - **Cleanup manifests** with safety levels L1–L4 — framework-magic aware (DI, decorators, reflection, convention-scanning). Nothing is deleted blindly.
+- **Honest session-close ledger** via `/arch-session-close` — DECs by status, LOC delta, cycle delta, worth-it-vs-ceremony ratio. Output goes to you, never to the repo.
 - **Language mirroring.** Responds in whatever language you're writing in. Keeps identifiers (slash commands, file paths, DEC-IDs, tier names) English.
 - **Per-repo calibration** via `.arch-profile.yaml`.
 
@@ -83,15 +89,27 @@ You get a ranked table of the top 30 hotspots (size × 90-day churn × cycles ×
 ### Step 3 — plan refactors for the worst offenders
 
 ```text
-/arch-decompose 1-5       # top 5 hotspots in parallel
-/arch-decompose ALL       # every row in parallel (quarterly review)
-/arch-decompose 1,3,7     # specific rows
+/arch-decompose 1-3         # top 3 hotspots in parallel
+/arch-decompose ALL         # top 3 by rank (capped). --force-all to override.
+/arch-decompose 1,3,7       # specific rows
 /arch-decompose src/foo.ts  # or just a path
 ```
 
-Each target gets its own `docs/decomposition/DEC-NNN-<slug>.md` — PR sequence, target Mermaid, rollout safety, risks. The summary table at the end has clickable links: Target → opens the source file, DEC file → opens the plan.
+**Pre-flight gates run in this order:**
 
-> **Cost warning.** `ALL` dispatches N parallel sub-agents = N× tokens. For a normal week, start with `1-3`.
+1. **Trigger check** (first `/arch-*` of the session) — asks: feature-pushed (a) / proactive-cleanup (b) / curiosity (c). (c) refuses the decomposer; suggests `/arch-clean` instead.
+2. **Cleanup-first gate** — if `cleanup_debt_count >= 10` from the latest `/arch-hotspot` scan and no `/arch-clean` was run in the last 7 days, the command refuses and recommends running `/arch-clean` first. Override: `--skip-cleanup-gate`.
+3. **DEC budget cap** — ≤ 3 active DECs per repo. New DEC creation blocks until one closes. Override: `--budget-override "<reason>"` (logged in the session-close ledger).
+
+When the gates pass, each target gets one of three verdicts:
+
+- **`act`** — real hotspot, domain decomposition exists → full DEC at `docs/decomposition/DEC-NNN-<slug>.md`.
+- **`defer`** — real hotspot but cost > value right now → 1-section stub with explicit re-open condition.
+- **`no-op`** — file is healthy, the metrics are misleading → no-op DEC at `docs/decomposition/DEC-NNN-<slug>-noop.md`. **No PR plan. Plan ends.** The `-noop` suffix makes these visually distinct in `ls`.
+
+The decomposer's bias is toward `no-op`. A scan that returns 3 `no-op`s is a successful scan — it means the codebase is healthier than the metrics suggested. The summary table has a Verdict column; if all rows came back as `no-op`, the command ends with **"Це норм. Усе гаразд. Архітектурно чіпати нічого."** (mirrored to your language).
+
+> **Cost warning.** `ALL` dispatches up to 3 parallel sub-agents = 3× tokens by default. Use `--force-all` to plan every hotspot from the latest scan.
 
 ### Step 4 — ship refactors
 
@@ -180,20 +198,30 @@ Claude lists every file to delete with evidence, asks `yes`, deletes, runs tests
 
 ## Commands
 
-| Command                                  | What it does                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------- |
-| `/arch-profile-init`                     | One-time per repo: detect stack, generate `.arch-profile.yaml`      |
-| `/arch-hotspot`                          | Rank hotspots; save row state so later commands can use row numbers |
-| `/arch-decompose <path\|N\|A-B\|ALL>`    | Plan decomposition(s); parallel sub-agents when ≥ 2 targets         |
-| `/arch-execute <DEC-N> [PR-M]` `[flags]` | One PR: worktree → test → commit → push → remove                    |
-| `/arch-execute <DEC-N> --auto`           | Whole DEC on one branch, N commits, no prompts between PRs          |
-| `/arch-execute ALL --auto`               | Every DEC with unexecuted PRs, each in its own branch               |
-| `/arch-clean [scope]`                    | Cleanup manifest (L1–L4), no deletions                              |
-| `/arch-clean-approve <batch>`            | Execute one cleanup batch                                           |
-| `/arch-review`                           | Fast diff-only architectural review                                 |
-| `/arch-describe [scope]`                 | C4 architectural description (Mermaid)                              |
-| `/arch-plan`                             | Freeze current plan as ADR                                          |
-| `/arch-approve [--adr] [--trivial "…"]`  | Unlock edits in strict mode (rarely needed outside strict)          |
+| Command                                  | What it does                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `/arch-profile-init`                     | One-time per repo: detect stack, generate `.arch-profile.yaml`                                            |
+| `/arch-hotspot`                          | Rank hotspots (decay-adjusted churn); also tallies cleanup debt; saves row state for later commands       |
+| `/arch-decompose <path\|N\|A-B\|ALL>`    | Plan decomposition(s); emits `act` / `defer` / `no-op` verdict per target; gated on cleanup + DEC budget  |
+| `/arch-session-close [<N>d]`             | Honest session ledger — DECs by status, LOC/cycle delta, worth-it-vs-ceremony ratio. Conversational only. |
+| `/arch-execute <DEC-N> [PR-M]` `[flags]` | One PR: worktree → test → commit → push → remove                                                          |
+| `/arch-execute <DEC-N> --auto`           | Whole DEC on one branch, N commits, no prompts between PRs                                                |
+| `/arch-execute ALL --auto`               | Every DEC with unexecuted PRs, each in its own branch                                                     |
+| `/arch-clean [scope]`                    | Cleanup manifest (L1–L4), no deletions                                                                    |
+| `/arch-clean-approve <batch>`            | Execute one cleanup batch                                                                                 |
+| `/arch-review`                           | Fast diff-only architectural review                                                                       |
+| `/arch-describe [scope]`                 | C4 architectural description (Mermaid)                                                                    |
+| `/arch-plan`                             | Freeze current plan as ADR (only on real X-vs-Y forks; never preemptive Phase-0 spec)                     |
+| `/arch-approve [--adr] [--trivial "…"]`  | Unlock edits in strict mode (rarely needed outside strict)                                                |
+
+### `/arch-decompose` flags
+
+| Flag                           | Effect                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| _(none)_                       | Run all pre-flight gates; emit verdict per target                              |
+| `--force-all`                  | Bypass the top-3 cap on `ALL`                                                  |
+| `--skip-cleanup-gate`          | Bypass the cleanup-first gate (when `cleanup_debt_count ≥ 10`)                 |
+| `--budget-override "<reason>"` | Bypass the active-DEC budget cap; reason is logged in the session-close ledger |
 
 ### `/arch-execute` flags
 
@@ -243,14 +271,15 @@ commands:
 
 ## What gets written where
 
-| Path                            | When                  | Purpose                                             |
-| ------------------------------- | --------------------- | --------------------------------------------------- |
-| `.arch-profile.yaml`            | `/arch-profile-init`  | Per-repo calibration. Commit it.                    |
-| `docs/decomposition/DEC-*.md`   | `/arch-decompose`     | Decomposition plans. Commit them.                   |
-| `docs/cleanup/CLN-*.md`         | `/arch-clean`         | Cleanup manifests. Commit them.                     |
-| `docs/adr/ADR-*.md`             | `/arch-plan`, `--adr` | Architectural Decision Records. Commit them.        |
-| `$TMPDIR/architecture-first/…`  | hook + state files    | Ephemeral markers, 24h TTL. Never in your repo.     |
-| `<repo>.worktrees/DEC-*-pr-*-…` | `/arch-execute`       | Temporary per-PR worktree; auto-removed after push. |
+| Path                               | When                  | Purpose                                                                                           |
+| ---------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------- |
+| `.arch-profile.yaml`               | `/arch-profile-init`  | Per-repo calibration. Commit it.                                                                  |
+| `docs/decomposition/DEC-*.md`      | `/arch-decompose`     | `act` / `defer` decomposition plans. Commit them.                                                 |
+| `docs/decomposition/DEC-*-noop.md` | `/arch-decompose`     | `no-op` verdicts — explanation of why a file is healthy. Commit them so the next scan knows.      |
+| `docs/cleanup/CLN-*.md`            | `/arch-clean`         | Cleanup manifests. Commit them.                                                                   |
+| `docs/adr/ADR-*.md`                | `/arch-plan`, `--adr` | ADRs — only on real X-vs-Y forks. Commit them.                                                    |
+| `$TMPDIR/architecture-first/…`     | hook + state files    | Ephemeral markers (hotspot state, trigger answer, active-DEC index, 24h TTL). Never in your repo. |
+| `<repo>.worktrees/DEC-*-pr-*-…`    | `/arch-execute`       | Temporary per-PR worktree; auto-removed after push.                                               |
 
 ---
 

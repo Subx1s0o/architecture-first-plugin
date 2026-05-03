@@ -1,0 +1,55 @@
+# DEC-NNNN: NO-OP — `<target>` is healthy
+
+- **Date**: YYYY-MM-DD
+- **Status**: no-op
+- **Verdict**: **Це норм. Не чіпай.** / **Leave it alone.**
+- **Target**: <path / module>
+
+This DEC closes itself. There is no PR plan, no risk table, no rollout. The file is healthy; the metrics that surfaced it are misleading. Below is the evidence and the conditions under which it would be worth re-opening.
+
+## 1. Why it looked like a hotspot (and why each signal is misleading)
+
+| Signal | Value | Threshold | Why it doesn't apply here |
+| ------ | ----- | --------- | ------------------------- |
+| <e.g. Churn 90d> | 17 commits | warn 7 | 16 of 17 commits are arch-bot / `chore(format)` / `chore: strip` / merge — product-driven churn = 1. **Decay-adjusted churn passes.** |
+| <e.g. Fan-in> | 12 importers | warn 15 | All 12 are leaf consumers in a single resolver tree under `src/portfolios/`. Fan-in is *structural*, not a god-dependency smell. |
+| <e.g. LoC> | 282 | warn 400 | Below threshold. |
+| <e.g. Cycle> | none | — | File contributes to no cycle in `madge --circular`. |
+| <e.g. Responsibilities> | 1 cluster + 4 cohesive private helpers | 1 | Single-intent orchestrator with named helpers. No responsibility split available. |
+
+## 2. What "act" would have cost
+
+A counter-factual: if we had decomposed this file anyway, here is the bill.
+
+- **Files added:** ~N (e.g. façade, listener, port).
+- **Caller imports renamed:** ~M.
+- **Cycles broken:** **0** (verified — `madge --circular` before/after identical).
+- **Caller pain solved:** 0 (no failing tests, no PR comments, no incident traceable to this file).
+- **Net code:** +X / −Y LOC.
+- **Cognitive cost:** one more layer of indirection between intent and effect.
+
+This is **work without a customer**. The healthy outcome is to not do it.
+
+## 3. When to re-open
+
+This DEC reverts to `proposed` if **any one** of the following becomes true:
+
+- LoC exceeds <X> (e.g. 400) **and** decay-adjusted churn exceeds <Y> (e.g. 7) product-driven commits in 90 days.
+- A specific feature requires touching > 5 files in this module to land cleanly.
+- Cycle count rises above current N (≥ N+1).
+- Two or more reviewers / engineers report concrete pain (failing tests, onboarding confusion, PR-comment friction) referencing this file by name.
+- A second implementation of the same logic appears in another module (real reuse pressure, not speculative).
+
+Until then: **don't write a PR for this.**
+
+## 4. Note for future-me
+
+The most common reason a healthy file gets re-flagged is metric drift after a format / refactor / merge spike — the same false signal that triggered this DEC. Before opening a successor, re-run the decay-adjusted churn check explicitly:
+
+```bash
+git log --since=90.days --oneline -- <path> \
+  | grep -vE 'arch-bot|chore\(format\)|chore: strip|^[0-9a-f]+ Merge ' \
+  | wc -l
+```
+
+If the answer is < 5, the file is still healthy regardless of raw signals.

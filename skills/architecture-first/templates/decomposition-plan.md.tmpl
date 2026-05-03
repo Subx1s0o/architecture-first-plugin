@@ -2,6 +2,9 @@
 
 - **Date**: YYYY-MM-DD
 - **Status**: proposed | in progress | done | abandoned
+- **Verdict**: act | defer | no-op
+  - If `no-op`: stop here and use `decomposition-plan-no-op.md.tmpl` instead. This template is for `act`.
+  - If `defer`: keep this file but truncate after Section 1 + Section 9 (re-open condition).
 - **Target**: <path / module>
 - **Owner**: <name>
 
@@ -10,20 +13,26 @@
 | Tier | Signal | Value | Threshold | Command |
 |---|---|---|---|---|
 | 0 | LoC | | | `wc -l ...` |
-| 0 | Churn 90d | | | `git log ...` |
+| 0 | Churn 90d (raw) | | | `git log --since=90.days --oneline -- <file> \| wc -l` |
+| 0 | Churn 90d (decay-adjusted, excludes bot/format/lint/merge) | | | `git log --since=90.days --oneline -- <file> \| grep -vE 'arch-bot\|chore\(format\)\|chore: strip\|^[0-9a-f]+ Merge ' \| wc -l` |
 | 1 | Fan-in | | | `grep ...` |
-| 1 | Cycle | | | `madge ...` |
+| 1 | Fan-in (distinct top-level modules) | | | `git grep -l ... \| awk -F/ '{ print $1"/"$2 }' \| sort -u \| wc -l` |
+| 1 | Cycle | | | `madge --circular ...` |
 | 2 | Responsibilities | | | see below |
 
 ## 2. Pattern chosen
 
 - **Pattern:** <name from playbook>
 - **Why this over alternatives:** …
+- **Cycles affected:** <N> _(mandatory line; if 0, state explicitly — narrow exports / façade patterns cannot reduce cycles unless they rewire `imports:`)_
+- **Anti-pattern checks:** A1 / A2 / A3 / H1–H8 — passed (see `references/known-antipatterns.md`).
 
 ## 3. Target architecture
 
 ```mermaid
 %% C4-component diagram of the target state
+%% rules: flowchart LR, BEFORE + AFTER subgraphs, <br/> inside labels (never \n),
+%% labeled edges (-->|"calls"|), unique node IDs across subgraphs.
 ```
 
 ## 4. PR sequence
@@ -33,6 +42,8 @@
 3. …
 
 Each PR ends with a green build and parity evidence.
+
+**Mid-DEC reality check.** Between PR-N and PR-(N+1), re-run the target's tier-0/1 signals. If the metric this DEC targeted has not moved AND no caller has migrated to the new seam yet, downgrade remaining PRs to `defer` or `no-op`. Don't march.
 
 ## 5. Rollout and rollback
 
@@ -53,5 +64,10 @@ Any transitional scaffolding (adapter, strangler router, dual-write) has a remov
 ## 8. Success criteria
 
 - Hotspot signals post-decomposition: LoC <, fan-in <, cycle gone, …
+- **Cycle proof:** re-run `madge --circular`; expect <N> cycles after (was <M>). Fail the DEC if prediction wrong.
 - Tests covering extracted seams exist and pass.
-- ADR linked: <ADR-xxxx>
+- ADR linked: <ADR-xxxx> _(only if a real X-vs-Y fork was decided here; never preemptively)_.
+
+## 9. Re-open condition (for `defer` verdict only)
+
+If this DEC is `defer`, state the explicit condition under which it would re-open. Example: "Re-open when DEC-016 PR-3 ships AND 30-day soak ends with no incidents."
